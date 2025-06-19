@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 // InsertMetricsData inserts metrics telemetry data into the database
@@ -12,7 +13,11 @@ func InsertMetricsData(data map[string]interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			// Transaction was already committed, which is fine
+		}
+	}()
 
 	resourceMetrics, ok := data["resourceMetrics"].([]interface{})
 	if !ok {
@@ -26,12 +31,14 @@ func InsertMetricsData(data map[string]interface{}) error {
 		}
 
 		// Get or create resource
-		var resourceID int64
-		if resource, ok := resourceMetric["resource"].(map[string]interface{}); ok {
-			resourceID, err = GetOrCreateResource(tx, resource)
-			if err != nil {
-				return fmt.Errorf("failed to process resource: %w", err)
-			}
+		resource, ok := resourceMetric["resource"].(map[string]interface{})
+		if !ok {
+			// Resource field is required in ResourceMetrics
+			return fmt.Errorf("invalid resourceMetric: missing resource field")
+		}
+		resourceID, err := GetOrCreateResource(tx, resource)
+		if err != nil {
+			return fmt.Errorf("failed to process resource: %w", err)
 		}
 
 		// Process scope metrics
@@ -47,12 +54,14 @@ func InsertMetricsData(data map[string]interface{}) error {
 			}
 
 			// Get or create scope
-			var scopeID int64
-			if scope, ok := scopeMetric["scope"].(map[string]interface{}); ok {
-				scopeID, err = GetOrCreateScope(tx, scope)
-				if err != nil {
-					return fmt.Errorf("failed to process scope: %w", err)
-				}
+			scope, ok := scopeMetric["scope"].(map[string]interface{})
+			if !ok {
+				// Skip scopeMetric without scope
+				continue
+			}
+			scopeID, err := GetOrCreateScope(tx, scope)
+			if err != nil {
+				return fmt.Errorf("failed to process scope: %w", err)
 			}
 
 			// Process metrics
@@ -101,18 +110,10 @@ func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID
 		return fmt.Errorf("unknown metric type for metric: %s", name)
 	}
 
-	// Insert metric
-	result, err := tx.Exec(
-		"INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)",
-		name, description, unit, metricType, resourceID, scopeID,
-	)
+	// Get or create metric
+	metricID, err := GetOrCreateMetric(tx, name, description, unit, metricType, resourceID, scopeID)
 	if err != nil {
-		return fmt.Errorf("failed to insert metric: %w", err)
-	}
-
-	metricID, err := result.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("failed to get metric ID: %w", err)
+		return fmt.Errorf("failed to get or create metric: %w", err)
 	}
 
 	// Insert data points
@@ -120,7 +121,7 @@ func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID
 		if dataPoints, ok := data["dataPoints"].([]interface{}); ok {
 			for _, dp := range dataPoints {
 				if dataPoint, ok := dp.(map[string]interface{}); ok {
-					if err := InsertMetricDataPoint(tx, dataPoint, metricID); err != nil {
+					if err := InsertMetricDataPoint(tx, dataPoint, metricID, metricType); err != nil {
 						return fmt.Errorf("failed to insert data point: %w", err)
 					}
 				}
@@ -132,7 +133,7 @@ func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID
 }
 
 // InsertMetricDataPoint inserts a single metric data point
-func InsertMetricDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64) error {
+func InsertMetricDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64, metricType string) error {
 	// Extract common fields
 	attributes, _ := dp["attributes"]
 	attributesJSON, err := json.Marshal(attributes)
@@ -141,13 +142,21 @@ func InsertMetricDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64
 	}
 
 	startTime := int64(0)
-	if st, ok := dp["startTimeUnixNano"].(string); ok {
-		startTime = parseTimeNano(st)
+	if st, ok := dp["startTimeUnixNano"].(string); ok && st != "" {
+		var err error
+		startTime, err = parseTimeNano(st)
+		if err != nil {
+			return fmt.Errorf("failed to parse startTimeUnixNano: %w", err)
+		}
 	}
 
 	timeUnix := int64(0)
-	if t, ok := dp["timeUnixNano"].(string); ok {
-		timeUnix = parseTimeNano(t)
+	if t, ok := dp["timeUnixNano"].(string); ok && t != "" {
+		var err error
+		timeUnix, err = parseTimeNano(t)
+		if err != nil {
+			return fmt.Errorf("failed to parse timeUnixNano: %w", err)
+		}
 	}
 
 	exemplars, _ := dp["exemplars"]
@@ -165,13 +174,79 @@ func InsertMetricDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64
 	var valueDouble sql.NullFloat64
 	var valueInt sql.NullInt64
 
+	// Handle simple values
 	if v, ok := dp["asDouble"].(float64); ok {
 		valueDouble = sql.NullFloat64{Float64: v, Valid: true}
 	} else if v, ok := dp["asInt"].(string); ok {
 		// Parse int from string
-		var intVal int64
-		if _, err := fmt.Sscanf(v, "%d", &intVal); err == nil {
+		if intVal, err := strconv.ParseInt(v, 10, 64); err == nil {
 			valueInt = sql.NullInt64{Int64: intVal, Valid: true}
+		} else {
+			return fmt.Errorf("failed to parse asInt value '%s': %w", v, err)
+		}
+	}
+
+	// Handle complex metric types
+	// TODO: Future enhancement - add dedicated columns for histogram/summary data
+	// For now, store complex metric data in attributes as JSON
+	complexData := make(map[string]interface{})
+	
+	switch metricType {
+	case "histogram":
+		if count, ok := dp["count"].(string); ok {
+			complexData["count"] = count
+		}
+		if sum, ok := dp["sum"].(float64); ok {
+			complexData["sum"] = sum
+		}
+		if bucketCounts, ok := dp["bucketCounts"].([]interface{}); ok {
+			complexData["bucketCounts"] = bucketCounts
+		}
+		if explicitBounds, ok := dp["explicitBounds"].([]interface{}); ok {
+			complexData["explicitBounds"] = explicitBounds
+		}
+	case "exponentialHistogram":
+		if count, ok := dp["count"].(string); ok {
+			complexData["count"] = count
+		}
+		if sum, ok := dp["sum"].(float64); ok {
+			complexData["sum"] = sum
+		}
+		if scale, ok := dp["scale"].(float64); ok {
+			complexData["scale"] = scale
+		}
+		if zeroCount, ok := dp["zeroCount"].(string); ok {
+			complexData["zeroCount"] = zeroCount
+		}
+		if positive, ok := dp["positive"].(map[string]interface{}); ok {
+			complexData["positive"] = positive
+		}
+		if negative, ok := dp["negative"].(map[string]interface{}); ok {
+			complexData["negative"] = negative
+		}
+	case "summary":
+		if count, ok := dp["count"].(string); ok {
+			complexData["count"] = count
+		}
+		if sum, ok := dp["sum"].(float64); ok {
+			complexData["sum"] = sum
+		}
+		if quantileValues, ok := dp["quantileValues"].([]interface{}); ok {
+			complexData["quantileValues"] = quantileValues
+		}
+	}
+
+	// Merge complex data into attributes
+	if len(complexData) > 0 {
+		if attributes == nil {
+			attributes = make(map[string]interface{})
+		}
+		if attrsMap, ok := attributes.(map[string]interface{}); ok {
+			attrsMap["_metricData"] = complexData
+			attributesJSON, err = json.Marshal(attrsMap)
+			if err != nil {
+				return fmt.Errorf("failed to marshal attributes with metric data: %w", err)
+			}
 		}
 	}
 

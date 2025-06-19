@@ -27,9 +27,14 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 
 	// Try to find existing resource
 	var id int64
+	var schemaURLValue interface{}
+	if schemaURL != "" {
+		schemaURLValue = schemaURL
+	}
+	
 	err = tx.QueryRow(
-		"SELECT id FROM resources WHERE attributes = ? AND (schema_url = ? OR (schema_url IS NULL AND ? IS NULL))",
-		string(attributesJSON), schemaURL, schemaURL,
+		"SELECT id FROM resources WHERE attributes = ? AND schema_url IS ?",
+		string(attributesJSON), schemaURLValue,
 	).Scan(&id)
 	
 	if err == nil {
@@ -43,7 +48,7 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 	// Create new resource
 	result, err := tx.Exec(
 		"INSERT INTO resources (attributes, schema_url) VALUES (?, ?)",
-		string(attributesJSON), schemaURL,
+		string(attributesJSON), schemaURLValue,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert resource: %w", err)
@@ -92,11 +97,19 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 
 	// Try to find existing scope
 	var id int64
+	var versionValue, schemaURLValue interface{}
+	if version != "" {
+		versionValue = version
+	}
+	if schemaURL != "" {
+		schemaURLValue = schemaURL
+	}
+	
 	err = tx.QueryRow(
 		`SELECT id FROM instrumentation_scopes 
-		WHERE name = ? AND (version = ? OR (version IS NULL AND ? IS NULL)) 
-		AND attributes = ? AND (schema_url = ? OR (schema_url IS NULL AND ? IS NULL))`,
-		name, version, version, string(attributesJSON), schemaURL, schemaURL,
+		WHERE name = ? AND version IS ? 
+		AND attributes = ? AND schema_url IS ?`,
+		name, versionValue, string(attributesJSON), schemaURLValue,
 	).Scan(&id)
 	
 	if err == nil {
@@ -110,7 +123,7 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 	// Create new scope
 	result, err := tx.Exec(
 		"INSERT INTO instrumentation_scopes (name, version, attributes, schema_url) VALUES (?, ?, ?, ?)",
-		name, version, string(attributesJSON), schemaURL,
+		name, versionValue, string(attributesJSON), schemaURLValue,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert scope: %w", err)
@@ -129,6 +142,36 @@ func parseTimeNano(timeStr string) (int64, error) {
 		return 0, fmt.Errorf("failed to parse time '%s': %w", timeStr, err)
 	}
 	return t.UnixNano(), nil
+}
+
+// GetOrCreateMetric finds or creates a metric and returns its ID
+func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, resourceID, scopeID int64) (int64, error) {
+	// Try to find existing metric
+	var id int64
+	err := tx.QueryRow(
+		`SELECT id FROM metrics 
+		WHERE name = ? AND type = ? AND resource_id = ? AND scope_id = ?`,
+		name, metricType, resourceID, scopeID,
+	).Scan(&id)
+	
+	if err == nil {
+		return id, nil // Found existing metric
+	}
+	
+	if err != sql.ErrNoRows {
+		return 0, fmt.Errorf("failed to query metric: %w", err)
+	}
+
+	// Create new metric
+	result, err := tx.Exec(
+		"INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)",
+		name, description, unit, metricType, resourceID, scopeID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert metric: %w", err)
+	}
+
+	return result.LastInsertId()
 }
 
 // getOrDefault returns the value if it exists, otherwise returns the default
