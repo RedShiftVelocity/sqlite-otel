@@ -22,7 +22,7 @@ func InsertLogsData(data map[string]interface{}) error {
 	for _, rl := range resourceLogs {
 		resourceLog, ok := rl.(map[string]interface{})
 		if !ok {
-			continue
+			return fmt.Errorf("invalid resourceLog type: expected map[string]interface{}, got %T", rl)
 		}
 
 		// Get or create resource
@@ -37,13 +37,13 @@ func InsertLogsData(data map[string]interface{}) error {
 		// Process scope logs
 		scopeLogs, ok := resourceLog["scopeLogs"].([]interface{})
 		if !ok {
-			continue
+			return fmt.Errorf("invalid scopeLogs type in resourceLog: expected []interface{}, got %T", resourceLog["scopeLogs"])
 		}
 
 		for _, sl := range scopeLogs {
 			scopeLog, ok := sl.(map[string]interface{})
 			if !ok {
-				continue
+				return fmt.Errorf("invalid scopeLog type: expected map[string]interface{}, got %T", sl)
 			}
 
 			// Get or create scope
@@ -58,13 +58,13 @@ func InsertLogsData(data map[string]interface{}) error {
 			// Process log records
 			logRecords, ok := scopeLog["logRecords"].([]interface{})
 			if !ok {
-				continue
+				return fmt.Errorf("invalid logRecords type in scopeLog: expected []interface{}, got %T", scopeLog["logRecords"])
 			}
 
 			for _, lr := range logRecords {
 				logRecord, ok := lr.(map[string]interface{})
 				if !ok {
-					continue
+					return fmt.Errorf("invalid logRecord type: expected map[string]interface{}, got %T", lr)
 				}
 
 				if err := InsertLogRecord(tx, logRecord, resourceID, scopeID); err != nil {
@@ -114,21 +114,30 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 		}
 	}
 
-	// Extract body
+	// Extract body (optional field)
 	var bodyJSON []byte
-	var err error
-	if body, ok := logRecord["body"]; ok {
+	if body, ok := logRecord["body"]; ok && body != nil {
+		var err error
 		bodyJSON, err = json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("failed to marshal log body: %w", err)
 		}
+	} else {
+		// If body is not present or nil, use empty JSON object
+		bodyJSON = []byte("{}")
 	}
 
-	// Extract attributes
-	attributes, _ := logRecord["attributes"]
-	attributesJSON, err := json.Marshal(attributes)
-	if err != nil {
-		return fmt.Errorf("failed to marshal log attributes: %w", err)
+	// Extract attributes (optional field)
+	var attributesJSON []byte
+	if attributes, ok := logRecord["attributes"]; ok && attributes != nil {
+		var err error
+		attributesJSON, err = json.Marshal(attributes)
+		if err != nil {
+			return fmt.Errorf("failed to marshal log attributes: %w", err)
+		}
+	} else {
+		// If attributes not present or nil, use empty JSON array
+		attributesJSON = []byte("[]")
 	}
 
 	// Extract trace context with type checking
@@ -157,7 +166,7 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 	}
 
 	// Insert log record
-	_, err = tx.Exec(`
+	_, err := tx.Exec(`
 		INSERT INTO log_records (
 			time_unix_nano, observed_time_unix_nano, severity_number, severity_text,
 			body, attributes, trace_id, span_id, flags, resource_id, scope_id
