@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // GetOrCreateResource finds or creates a resource and returns its ID
@@ -134,6 +135,8 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 
 // parseTimeNano converts OTLP timestamp (string-encoded nanoseconds) to int64
 func parseTimeNano(timeStr string) (int64, error) {
+	// Trim whitespace for robustness
+	timeStr = strings.TrimSpace(timeStr)
 	if timeStr == "" {
 		return 0, nil // Empty timestamp is not an error
 	}
