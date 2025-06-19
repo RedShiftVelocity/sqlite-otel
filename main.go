@@ -75,8 +75,6 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	
-	// Channel to signal server shutdown completion
-	done := make(chan bool, 1)
 	
 	// Start server in a goroutine
 	go func() {
@@ -97,8 +95,6 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	}
-	
-	close(done)
 	fmt.Println("Server stopped")
 }
 

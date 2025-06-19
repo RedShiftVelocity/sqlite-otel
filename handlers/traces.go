@@ -7,5 +7,5 @@ import (
 )
 
 func HandleTraces(w http.ResponseWriter, r *http.Request) {
-	ProcessTelemetryRequest(w, r, "trace", database.InsertTraceData)
+	ProcessTelemetryRequest(w, r, "traces", database.InsertTraceData)
 }

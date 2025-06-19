@@ -9,15 +9,22 @@ import (
 // stdoutMutex protects concurrent writes to stdout
 var stdoutMutex sync.Mutex
 
-func WriteTelemetryData(telemetryType string, body string) error {
-	data := map[string]string{
-		"type": telemetryType,
-		"body": body,
+// TelemetryOutput represents the JSON structure for stdout output
+type TelemetryOutput struct {
+	Type string          `json:"type"`
+	Body json.RawMessage `json:"body"`
+}
+
+func WriteTelemetryData(telemetryType string, body []byte) error {
+	// Create structured output using proper JSON marshaling
+	output := TelemetryOutput{
+		Type: telemetryType,
+		Body: json.RawMessage(body),
 	}
 
-	jsonData, err := json.Marshal(data)
+	jsonData, err := json.Marshal(output)
 	if err != nil {
-		return fmt.Errorf("failed to marshal telemetry data: %w", err)
+		return fmt.Errorf("failed to marshal telemetry output: %w", err)
 	}
 
 	// Synchronize writes to stdout to prevent race conditions

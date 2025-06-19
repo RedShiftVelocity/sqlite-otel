@@ -1,0 +1,7 @@
+SQLite database initialized at: ./test-final.db
+OTLP/HTTP receiver listening on port 4321
+{"type":"traces","body":{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"final-final-test"}}]},"scopeSpans":[{"scope":{"name":"test"},"spans":[{"traceId":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","spanId":"AAAAAAAAAAAAAAAA","name":"test","startTimeUnixNano":"1640995200000000000","endTimeUnixNano":"1640995201000000000"}]}]}]}}
+2025/06/19 23:02:25 Received traces request - Content-Type: application/json, Content-Length: 337
+
+Shutting down server...
+Server stopped
