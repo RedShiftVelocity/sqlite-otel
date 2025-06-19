@@ -6,8 +6,8 @@ import (
 	"sync"
 )
 
-// writeMutex protects concurrent writes to stdout
-var writeMutex sync.Mutex
+// stdoutMutex protects concurrent writes to stdout
+var stdoutMutex sync.Mutex
 
 func WriteTelemetryData(telemetryType string, body string) error {
 	data := map[string]string{
@@ -21,8 +21,8 @@ func WriteTelemetryData(telemetryType string, body string) error {
 	}
 
 	// Synchronize writes to stdout to prevent race conditions
-	writeMutex.Lock()
-	defer writeMutex.Unlock()
+	stdoutMutex.Lock()
+	defer stdoutMutex.Unlock()
 	fmt.Println(string(jsonData))
 	
 	return nil
