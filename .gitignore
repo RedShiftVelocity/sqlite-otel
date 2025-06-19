@@ -32,5 +32,6 @@ go.work.sum
 # .vscode/
 
 # Build output
+sqlite-otel
 sqlite-otel-collector
 sqlite-otel-collector-*

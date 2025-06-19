@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -30,10 +29,10 @@ func HandleTraces(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Print the raw data to stdout
-	fmt.Println("=== TRACES DATA ===")
-	fmt.Println(string(body))
-	fmt.Println("===================")
+	// Write telemetry data to file
+	if err := WriteTelemetryData("trace", string(body)); err != nil {
+		log.Printf("Error writing traces data to file: %v", err)
+	}
 
 	// Log request details
 	log.Printf("Received traces request - Content-Type: %s, Content-Length: %d", 
