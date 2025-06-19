@@ -1,0 +1,126 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+func main() {
+	db, err := sql.Open("sqlite3", "otel-collector.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// Check metrics table
+	fmt.Println("=== METRICS TABLE ===")
+	rows, err := db.Query("SELECT id, name, description, unit, type, resource_id, scope_id FROM metrics")
+	if err != nil {
+		log.Printf("Error querying metrics: %v", err)
+	} else {
+		defer rows.Close()
+		count := 0
+		for rows.Next() {
+			var id, resourceID, scopeID int64
+			var name, description, unit, metricType string
+			rows.Scan(&id, &name, &description, &unit, &metricType, &resourceID, &scopeID)
+			fmt.Printf("Metric %d: %s (type=%s, unit=%s, resource=%d, scope=%d)\n", 
+				id, name, metricType, unit, resourceID, scopeID)
+			count++
+		}
+		fmt.Printf("Total metrics: %d\n", count)
+	}
+
+	// Check metric data points
+	fmt.Println("\n=== METRIC DATA POINTS ===")
+	rows, err = db.Query(`
+		SELECT mdp.id, m.name, mdp.attributes, mdp.value_double, mdp.value_int, 
+		       mdp.start_time_unix_nano, mdp.time_unix_nano
+		FROM metric_data_points mdp
+		JOIN metrics m ON mdp.metric_id = m.id
+		LIMIT 10
+	`)
+	if err != nil {
+		log.Printf("Error querying data points: %v", err)
+	} else {
+		defer rows.Close()
+		count := 0
+		for rows.Next() {
+			var id, startTime, timeUnix int64
+			var metricName, attributes string
+			var valueDouble sql.NullFloat64
+			var valueInt sql.NullInt64
+			
+			rows.Scan(&id, &metricName, &attributes, &valueDouble, &valueInt, &startTime, &timeUnix)
+			
+			fmt.Printf("\nData Point %d for %s:\n", id, metricName)
+			if valueDouble.Valid {
+				fmt.Printf("  Value (double): %f\n", valueDouble.Float64)
+			}
+			if valueInt.Valid {
+				fmt.Printf("  Value (int): %d\n", valueInt.Int64)
+			}
+			
+			// Parse and display attributes
+			var attrs interface{}
+			if err := json.Unmarshal([]byte(attributes), &attrs); err == nil {
+				if attrsMap, ok := attrs.(map[string]interface{}); ok {
+					// Check for complex metric data
+					if metricData, ok := attrsMap["_metricData"]; ok {
+						fmt.Printf("  Complex metric data: %+v\n", metricData)
+						delete(attrsMap, "_metricData")
+					}
+					if len(attrsMap) > 0 {
+						fmt.Printf("  Attributes: %+v\n", attrsMap)
+					}
+				}
+			}
+			count++
+		}
+		fmt.Printf("\nTotal data points shown: %d\n", count)
+	}
+
+	// Check resources
+	fmt.Println("\n=== RESOURCES ===")
+	rows, err = db.Query("SELECT id, attributes, schema_url FROM resources LIMIT 5")
+	if err != nil {
+		log.Printf("Error querying resources: %v", err)
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			var attributes string
+			var schemaURL sql.NullString
+			rows.Scan(&id, &attributes, &schemaURL)
+			fmt.Printf("Resource %d: %s", id, attributes)
+			if schemaURL.Valid {
+				fmt.Printf(" (schema: %s)", schemaURL.String)
+			}
+			fmt.Println()
+		}
+	}
+
+	// Check scopes
+	fmt.Println("\n=== INSTRUMENTATION SCOPES ===")
+	rows, err = db.Query("SELECT id, name, version, attributes FROM instrumentation_scopes LIMIT 5")
+	if err != nil {
+		log.Printf("Error querying scopes: %v", err)
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			var name string
+			var version, attributes sql.NullString
+			rows.Scan(&id, &name, &version, &attributes)
+			fmt.Printf("Scope %d: %s", id, name)
+			if version.Valid {
+				fmt.Printf(" v%s", version.String)
+			}
+			fmt.Println()
+		}
+	}
+}
