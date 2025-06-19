@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/RedShiftVelocity/sqlite-otel/database"
 )
 
 func HandleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -29,9 +32,24 @@ func HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Write telemetry data to file
+	// Write telemetry data to file (maintaining dual storage)
 	if err := WriteTelemetryData("metrics", string(body)); err != nil {
 		log.Printf("Error writing metrics data to file: %v", err)
+	}
+
+	// Parse JSON body
+	var metricsData map[string]interface{}
+	if err := json.Unmarshal(body, &metricsData); err != nil {
+		log.Printf("Error parsing metrics JSON: %v", err)
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	// Store metrics in database
+	if err := database.InsertMetricsData(metricsData); err != nil {
+		log.Printf("Error storing metrics in database: %v", err)
+		// Note: We don't return an error to the client here to maintain compatibility
+		// The data is still written to file, so we can continue
 	}
 
 	// Log request details
