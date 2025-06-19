@@ -14,6 +14,20 @@ func InsertLogsData(data map[string]interface{}) error {
 	}
 	defer tx.Rollback()
 
+	// Prepare log record insert statement
+	logStmt, err := tx.Prepare(`
+		INSERT INTO log_records (
+			time_unix_nano, observed_time_unix_nano,
+			severity_number, severity_text,
+			body, attributes,
+			trace_id, span_id, trace_flags,
+			resource_id, scope_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare log insert statement: %w", err)
+	}
+	defer logStmt.Close()
+
 	resourceLogs, ok := data["resourceLogs"].([]interface{})
 	if !ok {
 		return fmt.Errorf("invalid logs data: missing resourceLogs")
@@ -25,10 +39,10 @@ func InsertLogsData(data map[string]interface{}) error {
 			continue
 		}
 
-		// Insert resource
+		// Get or create resource
 		var resourceID int64
 		if resource, ok := rlMap["resource"].(map[string]interface{}); ok {
-			resourceID, err = InsertResource(tx, resource)
+			resourceID, err = GetOrCreateResource(tx, resource)
 			if err != nil {
 				return err
 			}
@@ -46,10 +60,10 @@ func InsertLogsData(data map[string]interface{}) error {
 				continue
 			}
 
-			// Insert scope
+			// Get or create scope
 			var scopeID int64
 			if scope, ok := slMap["scope"].(map[string]interface{}); ok {
-				scopeID, err = InsertScope(tx, scope)
+				scopeID, err = GetOrCreateScope(tx, scope)
 				if err != nil {
 					return err
 				}
@@ -67,7 +81,7 @@ func InsertLogsData(data map[string]interface{}) error {
 					continue
 				}
 
-				if err := InsertLogRecord(tx, logMap, resourceID, scopeID); err != nil {
+				if err := InsertLogRecord(logStmt, logMap, resourceID, scopeID); err != nil {
 					return err
 				}
 			}
@@ -78,7 +92,7 @@ func InsertLogsData(data map[string]interface{}) error {
 }
 
 // InsertLogRecord inserts a single log record
-func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, scopeID int64) error {
+func InsertLogRecord(logStmt *sql.Stmt, logRecord map[string]interface{}, resourceID, scopeID int64) error {
 	// Parse timestamps
 	var timeUnixNano sql.NullInt64
 	if t := parseTimeNano(logRecord["timeUnixNano"]); t > 0 {
@@ -86,6 +100,9 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 	}
 
 	observedTimeUnixNano := parseTimeNano(logRecord["observedTimeUnixNano"])
+	if observedTimeUnixNano == 0 {
+		return fmt.Errorf("invalid log record: observedTimeUnixNano is required")
+	}
 
 	// Parse severity
 	var severityNumber sql.NullInt64
@@ -95,11 +112,17 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 	severityText, _ := logRecord["severityText"].(string)
 
 	// Parse body (can be various types)
-	bodyJSON, _ := json.Marshal(logRecord["body"])
+	bodyJSON, err := json.Marshal(logRecord["body"])
+	if err != nil {
+		return fmt.Errorf("failed to marshal log body: %w", err)
+	}
 
 	// Parse attributes
 	attributes := getOrDefault(logRecord, "attributes", []interface{}{})
-	attributesJSON, _ := json.Marshal(attributes)
+	attributesJSON, err := json.Marshal(attributes)
+	if err != nil {
+		return fmt.Errorf("failed to marshal log attributes: %w", err)
+	}
 
 	// Parse trace correlation
 	traceID, _ := logRecord["traceId"].(string)
@@ -110,14 +133,7 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 		traceFlags = int64(tf)
 	}
 
-	_, err := tx.Exec(`
-		INSERT INTO log_records (
-			time_unix_nano, observed_time_unix_nano,
-			severity_number, severity_text,
-			body, attributes,
-			trace_id, span_id, trace_flags,
-			resource_id, scope_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err = logStmt.Exec(
 		timeUnixNano, observedTimeUnixNano,
 		severityNumber, severityText,
 		string(bodyJSON), string(attributesJSON),
@@ -127,3 +143,4 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 	
 	return err
 }
+

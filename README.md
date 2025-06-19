@@ -37,8 +37,9 @@ Database schema will be automatically initialized on first startup, creating tab
 
 ### v0.3 - Dual Storage
 - Implement embedded SQLite database
+- Database schema initialization support
 - Write collected data to both file and SQLite simultaneously
-- Database schema initialization and migration support
+
 
 ### v0.4 - Execution Logging
 - Add dedicated log file for service execution metadata

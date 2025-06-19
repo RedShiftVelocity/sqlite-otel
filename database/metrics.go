@@ -14,6 +14,30 @@ func InsertMetricsData(data map[string]interface{}) error {
 	}
 	defer tx.Rollback()
 
+	// Prepare metric insert statement
+	metricStmt, err := tx.Prepare(
+		"INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to prepare metric insert statement: %w", err)
+	}
+	defer metricStmt.Close()
+
+	// Prepare data point insert statement
+	dataPointStmt, err := tx.Prepare(`
+		INSERT INTO metric_data_points (
+			metric_id, attributes, start_time_unix_nano, time_unix_nano, flags,
+			value_double, value_int, aggregation_temporality, is_monotonic,
+			count, sum_value, min_value, max_value, bucket_counts, explicit_bounds,
+			scale, zero_count, positive_offset, positive_bucket_counts,
+			negative_offset, negative_bucket_counts, quantile_values
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to prepare data point insert statement: %w", err)
+	}
+	defer dataPointStmt.Close()
+
 	resourceMetrics, ok := data["resourceMetrics"].([]interface{})
 	if !ok {
 		return fmt.Errorf("invalid metrics data: missing resourceMetrics")
@@ -25,10 +49,10 @@ func InsertMetricsData(data map[string]interface{}) error {
 			continue
 		}
 
-		// Insert resource
+		// Get or create resource
 		var resourceID int64
 		if resource, ok := rmMap["resource"].(map[string]interface{}); ok {
-			resourceID, err = InsertResource(tx, resource)
+			resourceID, err = GetOrCreateResource(tx, resource)
 			if err != nil {
 				return err
 			}
@@ -46,10 +70,10 @@ func InsertMetricsData(data map[string]interface{}) error {
 				continue
 			}
 
-			// Insert scope
+			// Get or create scope
 			var scopeID int64
 			if scope, ok := smMap["scope"].(map[string]interface{}); ok {
-				scopeID, err = InsertScope(tx, scope)
+				scopeID, err = GetOrCreateScope(tx, scope)
 				if err != nil {
 					return err
 				}
@@ -67,7 +91,7 @@ func InsertMetricsData(data map[string]interface{}) error {
 					continue
 				}
 
-				if err := InsertMetric(tx, metricMap, resourceID, scopeID); err != nil {
+				if err := InsertMetric(metricStmt, dataPointStmt, metricMap, resourceID, scopeID); err != nil {
 					return err
 				}
 			}
@@ -78,9 +102,12 @@ func InsertMetricsData(data map[string]interface{}) error {
 }
 
 // InsertMetric inserts a metric and its data points
-func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID int64) error {
-	// Extract metric metadata
-	name, _ := metric["name"].(string)
+func InsertMetric(metricStmt, dataPointStmt *sql.Stmt, metric map[string]interface{}, resourceID, scopeID int64) error {
+	// Extract metric metadata with error checking
+	name, ok := metric["name"].(string)
+	if !ok || name == "" {
+		return fmt.Errorf("invalid metric data: name is missing or not a string")
+	}
 	description, _ := metric["description"].(string)
 	unit, _ := metric["unit"].(string)
 
@@ -105,11 +132,12 @@ func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID
 		dataPoints, _ = summary["dataPoints"].([]interface{})
 	}
 
-	// Insert metric
-	result, err := tx.Exec(
-		"INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)",
-		name, description, unit, metricType, resourceID, scopeID,
-	)
+	if metricType == "" {
+		return fmt.Errorf("invalid metric data: unable to determine metric type")
+	}
+
+	// Insert metric using prepared statement
+	result, err := metricStmt.Exec(name, description, unit, metricType, resourceID, scopeID)
 	if err != nil {
 		return fmt.Errorf("failed to insert metric: %w", err)
 	}
@@ -128,15 +156,15 @@ func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID
 
 		switch metricType {
 		case "gauge":
-			err = InsertGaugeDataPoint(tx, dpMap, metricID)
+			err = InsertGaugeDataPoint(dataPointStmt, dpMap, metricID)
 		case "sum":
-			err = InsertSumDataPoint(tx, dpMap, metricID, metric)
+			err = InsertSumDataPoint(dataPointStmt, dpMap, metricID, metric)
 		case "histogram":
-			err = InsertHistogramDataPoint(tx, dpMap, metricID)
+			err = InsertHistogramDataPoint(dataPointStmt, dpMap, metricID)
 		case "exponential_histogram":
-			err = InsertExponentialHistogramDataPoint(tx, dpMap, metricID)
+			err = InsertExponentialHistogramDataPoint(dataPointStmt, dpMap, metricID)
 		case "summary":
-			err = InsertSummaryDataPoint(tx, dpMap, metricID)
+			err = InsertSummaryDataPoint(dataPointStmt, dpMap, metricID)
 		}
 
 		if err != nil {
@@ -148,9 +176,12 @@ func InsertMetric(tx *sql.Tx, metric map[string]interface{}, resourceID, scopeID
 }
 
 // InsertGaugeDataPoint inserts a gauge data point
-func InsertGaugeDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64) error {
+func InsertGaugeDataPoint(stmt *sql.Stmt, dp map[string]interface{}, metricID int64) error {
 	attributes := getOrDefault(dp, "attributes", []interface{}{})
-	attributesJSON, _ := json.Marshal(attributes)
+	attributesJSON, err := json.Marshal(attributes)
+	if err != nil {
+		return fmt.Errorf("failed to marshal gauge attributes: %w", err)
+	}
 	
 	startTime := parseTimeNano(dp["startTimeUnixNano"])
 	timeNano := parseTimeNano(dp["timeUnixNano"])
@@ -167,24 +198,28 @@ func InsertGaugeDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64)
 	} else if val, ok := dp["asInt"].(string); ok {
 		if intVal, err := parseIntValue(val); err == nil {
 			valueInt = sql.NullInt64{Int64: intVal, Valid: true}
+		} else {
+			return fmt.Errorf("failed to parse gauge int value: %w", err)
 		}
 	}
 
-	_, err := tx.Exec(`
-		INSERT INTO metric_data_points (
-			metric_id, attributes, start_time_unix_nano, time_unix_nano, flags,
-			value_double, value_int
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	// Use prepared statement with all fields (nulls for unused fields)
+	_, err = stmt.Exec(
 		metricID, string(attributesJSON), startTime, timeNano, flags,
-		valueDouble, valueInt,
+		valueDouble, valueInt, nil, nil, // value fields
+		nil, nil, nil, nil, nil, nil,    // histogram fields
+		nil, nil, nil, nil, nil, nil, nil, // exponential histogram fields
 	)
 	return err
 }
 
 // InsertSumDataPoint inserts a sum data point
-func InsertSumDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64, metric map[string]interface{}) error {
+func InsertSumDataPoint(stmt *sql.Stmt, dp map[string]interface{}, metricID int64, metric map[string]interface{}) error {
 	attributes := getOrDefault(dp, "attributes", []interface{}{})
-	attributesJSON, _ := json.Marshal(attributes)
+	attributesJSON, err := json.Marshal(attributes)
+	if err != nil {
+		return fmt.Errorf("failed to marshal sum attributes: %w", err)
+	}
 	
 	startTime := parseTimeNano(dp["startTimeUnixNano"])
 	timeNano := parseTimeNano(dp["timeUnixNano"])
@@ -212,19 +247,18 @@ func InsertSumDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64, m
 	}
 	isMonotonic, _ := sum["isMonotonic"].(bool)
 
-	_, err := tx.Exec(`
-		INSERT INTO metric_data_points (
-			metric_id, attributes, start_time_unix_nano, time_unix_nano, flags,
-			value_double, value_int, aggregation_temporality, is_monotonic
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	// Use prepared statement with all fields (nulls for unused fields)
+	_, err = stmt.Exec(
 		metricID, string(attributesJSON), startTime, timeNano, flags,
 		valueDouble, valueInt, aggregationTemporality, isMonotonic,
+		nil, nil, nil, nil, nil, nil,    // histogram fields
+		nil, nil, nil, nil, nil, nil, nil, // exponential histogram fields
 	)
 	return err
 }
 
 // InsertHistogramDataPoint inserts a histogram data point
-func InsertHistogramDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64) error {
+func InsertHistogramDataPoint(stmt *sql.Stmt, dp map[string]interface{}, metricID int64) error {
 	attributes := getOrDefault(dp, "attributes", []interface{}{})
 	attributesJSON, _ := json.Marshal(attributes)
 	
@@ -256,7 +290,7 @@ func InsertHistogramDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID in
 	bucketCountsJSON, _ := json.Marshal(dp["bucketCounts"])
 	explicitBoundsJSON, _ := json.Marshal(dp["explicitBounds"])
 
-	_, err := tx.Exec(`
+	_, err := stmt.Exec(`
 		INSERT INTO metric_data_points (
 			metric_id, attributes, start_time_unix_nano, time_unix_nano, flags,
 			count, sum_value, min_value, max_value, bucket_counts, explicit_bounds
@@ -268,7 +302,7 @@ func InsertHistogramDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID in
 }
 
 // InsertExponentialHistogramDataPoint inserts an exponential histogram data point
-func InsertExponentialHistogramDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64) error {
+func InsertExponentialHistogramDataPoint(stmt *sql.Stmt, dp map[string]interface{}, metricID int64) error {
 	attributes := getOrDefault(dp, "attributes", []interface{}{})
 	attributesJSON, _ := json.Marshal(attributes)
 	
@@ -319,7 +353,7 @@ func InsertExponentialHistogramDataPoint(tx *sql.Tx, dp map[string]interface{}, 
 		negativeBucketCounts = string(negCountsJSON)
 	}
 
-	_, err := tx.Exec(`
+	_, err := stmt.Exec(`
 		INSERT INTO metric_data_points (
 			metric_id, attributes, start_time_unix_nano, time_unix_nano, flags,
 			count, sum_value, scale, zero_count,
@@ -335,7 +369,7 @@ func InsertExponentialHistogramDataPoint(tx *sql.Tx, dp map[string]interface{}, 
 }
 
 // InsertSummaryDataPoint inserts a summary data point
-func InsertSummaryDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int64) error {
+func InsertSummaryDataPoint(stmt *sql.Stmt, dp map[string]interface{}, metricID int64) error {
 	attributes := getOrDefault(dp, "attributes", []interface{}{})
 	attributesJSON, _ := json.Marshal(attributes)
 	
@@ -358,7 +392,7 @@ func InsertSummaryDataPoint(tx *sql.Tx, dp map[string]interface{}, metricID int6
 
 	quantileValuesJSON, _ := json.Marshal(dp["quantileValues"])
 
-	_, err := tx.Exec(`
+	_, err := stmt.Exec(`
 		INSERT INTO metric_data_points (
 			metric_id, attributes, start_time_unix_nano, time_unix_nano, flags,
 			count, sum_value, quantile_values

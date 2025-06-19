@@ -194,6 +194,9 @@ func createTables() error {
 
 	// Create indexes
 	indexes := []string{
+		// Unique indexes for find-or-create pattern
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_lookup ON resources(attributes, schema_url)",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_scopes_lookup ON instrumentation_scopes(name, version, attributes, schema_url)",
 		// Indexes for spans
 		"CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans(trace_id)",
 		"CREATE INDEX IF NOT EXISTS idx_spans_span_id ON spans(span_id)",
