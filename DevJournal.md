@@ -1,5 +1,40 @@
 # Development Journal
 
+## [2025-06-19] - v0.3 SQLite Database Integration
+
+### Actions:
+- Added SQLite driver dependency (github.com/mattn/go-sqlite3)
+- Created database package with initialization and table creation logic
+- Implemented all tables from otel-sqlite-schema.md (resources, scopes, spans, metrics, logs, etc.)
+- Created separate files for traces.go, metrics.go, and logs.go database operations
+- Added database initialization to main.go with --db-path flag
+- Updated handlers/common.go to write to both stdout (JSON) and SQLite database
+- Fixed telemetry type mismatch in traces handler ("trace" → "traces")
+- Created test utilities in cmd/ directory for database verification
+- Successfully tested all three telemetry types with sample OTLP data
+
+### Decisions:
+- Used database/sql with mattn/go-sqlite3 driver for SQLite access
+- Enabled WAL (Write-Ahead Logging) mode for better concurrent access
+- Maintained dual output: existing JSON to stdout + new SQLite storage
+- Used transactions for atomic writes across related tables
+- Stored complex attributes and arrays as JSON text in SQLite
+- Time fields stored as INTEGER (nanoseconds since Unix epoch)
+- Trace/Span IDs stored as hex strings for easier querying
+- Default database file: otel-collector.db in current directory
+
+### Challenges:
+- Initial data wasn't being inserted due to telemetry type mismatch in traces handler
+- Had to handle various OTLP data formats (string integers, nested objects, optional fields)
+- Complex metric types required different handling for each type (gauge, sum, histogram, etc.)
+
+### Learnings:
+- OTLP JSON can have integer values as strings (e.g., "asInt": "42")
+- SQLite's JSON storage as TEXT provides good flexibility for complex attributes
+- Proper error handling in database operations is crucial for debugging
+- Testing with all three telemetry types is important to catch edge cases
+- Go's sql.Null* types are useful for handling optional database fields
+
 ## [2025-01-19] - PR #2: v0.2 File Output
 
 ### Actions:
