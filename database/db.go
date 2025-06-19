@@ -98,7 +98,7 @@ func createTables() error {
 			name TEXT NOT NULL,
 			description TEXT,
 			unit TEXT,
-			type TEXT NOT NULL,
+			metric_type TEXT NOT NULL,
 			resource_id INTEGER NOT NULL,
 			scope_id INTEGER NOT NULL,
 			FOREIGN KEY (resource_id) REFERENCES resources (id),
@@ -147,7 +147,7 @@ func createTables() error {
 		// Create unique indexes for deduplication
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_unique ON resources(attributes, schema_url)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_scopes_unique ON instrumentation_scopes(name, version, attributes, schema_url)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_unique ON metrics(name, type, resource_id, scope_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_unique ON metrics(name, metric_type, resource_id, scope_id)`,
 	}
 
 	for _, table := range tables {

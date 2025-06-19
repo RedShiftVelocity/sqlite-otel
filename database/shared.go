@@ -140,8 +140,8 @@ func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, r
 	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
 	// We don't update description/unit on conflict to maintain consistency - first definition wins
 	_, err := tx.Exec(`
-		INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(name, type, resource_id, scope_id) DO NOTHING`,
+		INSERT INTO metrics (name, description, unit, metric_type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name, metric_type, resource_id, scope_id) DO NOTHING`,
 		name, description, unit, metricType, resourceID, scopeID,
 	)
 	if err != nil {
@@ -152,7 +152,7 @@ func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, r
 	var id int64
 	err = tx.QueryRow(`
 		SELECT id FROM metrics 
-		WHERE name = ? AND type = ? AND resource_id = ? AND scope_id = ?`,
+		WHERE name = ? AND metric_type = ? AND resource_id = ? AND scope_id = ?`,
 		name, metricType, resourceID, scopeID,
 	).Scan(&id)
 	if err != nil {
