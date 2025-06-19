@@ -9,7 +9,11 @@ import (
 
 // GetOrCreateResource finds or creates a resource and returns its ID
 func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, error) {
-	attributes, _ := resource["attributes"]
+	// Explicitly handle attributes extraction
+	attributes, ok := resource["attributes"]
+	if !ok || attributes == nil {
+		attributes = make(map[string]interface{}) // Default to empty map
+	}
 	
 	var schemaURL string
 	if su, ok := resource["schemaUrl"]; ok && su != nil {
@@ -25,23 +29,25 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 		return 0, fmt.Errorf("failed to marshal resource attributes: %w", err)
 	}
 
-	// Use atomic UPSERT with RETURNING clause to avoid race conditions
-	var id int64
-	var schemaURLValue interface{}
-	if schemaURL != "" {
-		schemaURLValue = schemaURL
+	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
+	// This approach works with SQLite 3.24.0+ (ON CONFLICT requires 3.24.0+)
+	_, err = tx.Exec(`
+		INSERT INTO resources (attributes, schema_url) VALUES (?, ?)
+		ON CONFLICT(attributes, schema_url) DO NOTHING`,
+		string(attributesJSON), schemaURL,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert resource: %w", err)
 	}
 	
-	// INSERT ... ON CONFLICT ... DO UPDATE SET id=id is a no-op update that allows RETURNING to work
+	// Now select the ID of the guaranteed-to-exist row
+	var id int64
 	err = tx.QueryRow(`
-		INSERT INTO resources (attributes, schema_url) VALUES (?, ?)
-		ON CONFLICT(attributes, schema_url) DO UPDATE SET id=id
-		RETURNING id`,
-		string(attributesJSON), schemaURLValue,
+		SELECT id FROM resources WHERE attributes = ? AND schema_url = ?`,
+		string(attributesJSON), schemaURL,
 	).Scan(&id)
-	
 	if err != nil {
-		return 0, fmt.Errorf("failed to get or create resource: %w", err)
+		return 0, fmt.Errorf("failed to get resource id: %w", err)
 	}
 	
 	return id, nil
@@ -78,33 +84,36 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 		}
 	}
 	
-	attributes, _ := scope["attributes"]
+	// Explicitly handle attributes extraction
+	attributes, ok := scope["attributes"]
+	if !ok || attributes == nil {
+		attributes = make(map[string]interface{}) // Default to empty map
+	}
 
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal scope attributes: %w", err)
 	}
 
-	// Use atomic UPSERT with RETURNING clause to avoid race conditions
-	var id int64
-	var versionValue, schemaURLValue interface{}
-	if version != "" {
-		versionValue = version
-	}
-	if schemaURL != "" {
-		schemaURLValue = schemaURL
-	}
-	
-	// INSERT ... ON CONFLICT ... DO UPDATE SET id=id is a no-op update that allows RETURNING to work
-	err = tx.QueryRow(`
+	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
+	_, err = tx.Exec(`
 		INSERT INTO instrumentation_scopes (name, version, attributes, schema_url) VALUES (?, ?, ?, ?)
-		ON CONFLICT(name, version, attributes, schema_url) DO UPDATE SET id=id
-		RETURNING id`,
-		name, versionValue, string(attributesJSON), schemaURLValue,
-	).Scan(&id)
-	
+		ON CONFLICT(name, version, attributes, schema_url) DO NOTHING`,
+		name, version, string(attributesJSON), schemaURL,
+	)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get or create scope: %w", err)
+		return 0, fmt.Errorf("failed to insert scope: %w", err)
+	}
+	
+	// Now select the ID of the guaranteed-to-exist row
+	var id int64
+	err = tx.QueryRow(`
+		SELECT id FROM instrumentation_scopes 
+		WHERE name = ? AND version = ? AND attributes = ? AND schema_url = ?`,
+		name, version, string(attributesJSON), schemaURL,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get scope id: %w", err)
 	}
 	
 	return id, nil
@@ -124,22 +133,26 @@ func parseTimeNano(timeStr string) (int64, error) {
 
 // GetOrCreateMetric finds or creates a metric and returns its ID
 func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, resourceID, scopeID int64) (int64, error) {
-	// Use atomic UPSERT with RETURNING clause to avoid race conditions
-	var id int64
-	
-	// INSERT ... ON CONFLICT ... DO UPDATE SET id=id is a no-op update that allows RETURNING to work
-	// Description and unit may change between calls, so we update them on conflict
-	err := tx.QueryRow(`
+	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
+	// We don't update description/unit on conflict to maintain consistency - first definition wins
+	_, err := tx.Exec(`
 		INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(name, type, resource_id, scope_id) DO UPDATE SET 
-			description = excluded.description,
-			unit = excluded.unit
-		RETURNING id`,
+		ON CONFLICT(name, type, resource_id, scope_id) DO NOTHING`,
 		name, description, unit, metricType, resourceID, scopeID,
-	).Scan(&id)
-	
+	)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get or create metric: %w", err)
+		return 0, fmt.Errorf("failed to insert metric: %w", err)
+	}
+	
+	// Now select the ID of the guaranteed-to-exist row
+	var id int64
+	err = tx.QueryRow(`
+		SELECT id FROM metrics 
+		WHERE name = ? AND type = ? AND resource_id = ? AND scope_id = ?`,
+		name, metricType, resourceID, scopeID,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get metric id: %w", err)
 	}
 	
 	return id, nil

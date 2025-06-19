@@ -47,17 +47,17 @@ func createTables() error {
 		// Resources table
 		`CREATE TABLE IF NOT EXISTS resources (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			attributes TEXT,
-			schema_url TEXT
+			attributes TEXT NOT NULL DEFAULT '{}',
+			schema_url TEXT NOT NULL DEFAULT ''
 		)`,
 
 		// Instrumentation scopes table
 		`CREATE TABLE IF NOT EXISTS instrumentation_scopes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT,
-			version TEXT,
-			attributes TEXT,
-			schema_url TEXT
+			name TEXT NOT NULL DEFAULT '',
+			version TEXT NOT NULL DEFAULT '',
+			attributes TEXT NOT NULL DEFAULT '{}',
+			schema_url TEXT NOT NULL DEFAULT ''
 		)`,
 
 		// Spans table
