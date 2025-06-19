@@ -25,36 +25,26 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 		return 0, fmt.Errorf("failed to marshal resource attributes: %w", err)
 	}
 
-	// Try to find existing resource
+	// Use atomic UPSERT with RETURNING clause to avoid race conditions
 	var id int64
 	var schemaURLValue interface{}
 	if schemaURL != "" {
 		schemaURLValue = schemaURL
 	}
 	
-	err = tx.QueryRow(
-		"SELECT id FROM resources WHERE attributes = ? AND schema_url IS ?",
+	// INSERT ... ON CONFLICT ... DO UPDATE SET id=id is a no-op update that allows RETURNING to work
+	err = tx.QueryRow(`
+		INSERT INTO resources (attributes, schema_url) VALUES (?, ?)
+		ON CONFLICT(attributes, schema_url) DO UPDATE SET id=id
+		RETURNING id`,
 		string(attributesJSON), schemaURLValue,
 	).Scan(&id)
 	
-	if err == nil {
-		return id, nil // Found existing resource
+	if err != nil {
+		return 0, fmt.Errorf("failed to get or create resource: %w", err)
 	}
 	
-	if err != sql.ErrNoRows {
-		return 0, fmt.Errorf("failed to query resource: %w", err)
-	}
-
-	// Create new resource
-	result, err := tx.Exec(
-		"INSERT INTO resources (attributes, schema_url) VALUES (?, ?)",
-		string(attributesJSON), schemaURLValue,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("failed to insert resource: %w", err)
-	}
-
-	return result.LastInsertId()
+	return id, nil
 }
 
 // GetOrCreateScope finds or creates an instrumentation scope and returns its ID
@@ -95,7 +85,7 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 		return 0, fmt.Errorf("failed to marshal scope attributes: %w", err)
 	}
 
-	// Try to find existing scope
+	// Use atomic UPSERT with RETURNING clause to avoid race conditions
 	var id int64
 	var versionValue, schemaURLValue interface{}
 	if version != "" {
@@ -105,31 +95,19 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 		schemaURLValue = schemaURL
 	}
 	
-	err = tx.QueryRow(
-		`SELECT id FROM instrumentation_scopes 
-		WHERE name = ? AND version IS ? 
-		AND attributes = ? AND schema_url IS ?`,
+	// INSERT ... ON CONFLICT ... DO UPDATE SET id=id is a no-op update that allows RETURNING to work
+	err = tx.QueryRow(`
+		INSERT INTO instrumentation_scopes (name, version, attributes, schema_url) VALUES (?, ?, ?, ?)
+		ON CONFLICT(name, version, attributes, schema_url) DO UPDATE SET id=id
+		RETURNING id`,
 		name, versionValue, string(attributesJSON), schemaURLValue,
 	).Scan(&id)
 	
-	if err == nil {
-		return id, nil // Found existing scope
+	if err != nil {
+		return 0, fmt.Errorf("failed to get or create scope: %w", err)
 	}
 	
-	if err != sql.ErrNoRows {
-		return 0, fmt.Errorf("failed to query scope: %w", err)
-	}
-
-	// Create new scope
-	result, err := tx.Exec(
-		"INSERT INTO instrumentation_scopes (name, version, attributes, schema_url) VALUES (?, ?, ?, ?)",
-		name, versionValue, string(attributesJSON), schemaURLValue,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("failed to insert scope: %w", err)
-	}
-
-	return result.LastInsertId()
+	return id, nil
 }
 
 // parseTimeNano converts a time string to Unix nanoseconds
@@ -146,32 +124,25 @@ func parseTimeNano(timeStr string) (int64, error) {
 
 // GetOrCreateMetric finds or creates a metric and returns its ID
 func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, resourceID, scopeID int64) (int64, error) {
-	// Try to find existing metric
+	// Use atomic UPSERT with RETURNING clause to avoid race conditions
 	var id int64
-	err := tx.QueryRow(
-		`SELECT id FROM metrics 
-		WHERE name = ? AND type = ? AND resource_id = ? AND scope_id = ?`,
-		name, metricType, resourceID, scopeID,
+	
+	// INSERT ... ON CONFLICT ... DO UPDATE SET id=id is a no-op update that allows RETURNING to work
+	// Description and unit may change between calls, so we update them on conflict
+	err := tx.QueryRow(`
+		INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name, type, resource_id, scope_id) DO UPDATE SET 
+			description = excluded.description,
+			unit = excluded.unit
+		RETURNING id`,
+		name, description, unit, metricType, resourceID, scopeID,
 	).Scan(&id)
 	
-	if err == nil {
-		return id, nil // Found existing metric
+	if err != nil {
+		return 0, fmt.Errorf("failed to get or create metric: %w", err)
 	}
 	
-	if err != sql.ErrNoRows {
-		return 0, fmt.Errorf("failed to query metric: %w", err)
-	}
-
-	// Create new metric
-	result, err := tx.Exec(
-		"INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)",
-		name, description, unit, metricType, resourceID, scopeID,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("failed to insert metric: %w", err)
-	}
-
-	return result.LastInsertId()
+	return id, nil
 }
 
 // getOrDefault returns the value if it exists, otherwise returns the default
