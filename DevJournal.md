@@ -1,5 +1,65 @@
 # Development Journal
 
+## [2025-06-19] - PR #25: Fix Race Conditions in GetOrCreate Functions
+### Actions: 
+- Replaced RETURNING clause with INSERT ON CONFLICT DO NOTHING + SELECT pattern for SQLite 3.24.0+ compatibility
+- Added explicit NULL handling for attributes with default empty map
+- Made resource_id and scope_id NOT NULL in metrics table to prevent NULL duplicates in unique index
+- Removed unused getOrDefault function
+- Implemented code quality improvements from O3-mini and Gemini reviews
+- Added getStringFromMap helper function to reduce code duplication
+- Added documentation for JSON marshaling behavior
+- Wrapped schema creation in transaction for atomicity
+- Added error handling for database close operation
+
+### Decisions:
+- Used INSERT ON CONFLICT DO NOTHING + SELECT pattern instead of RETURNING for broader SQLite compatibility
+- Made all foreign key columns NOT NULL in tables with unique indexes to prevent NULL duplicates
+- Used fmt.Printf for database close errors since log package might not be available during shutdown
+- Kept json.Marshal for attributes serialization with documentation about key sorting behavior
+
+### Challenges:
+- RETURNING clause requires SQLite 3.35.0+ which may not be available in all environments
+- NULL values in unique indexes can lead to duplicate entries in SQLite
+- Balancing between code duplication and over-abstraction when extracting helper functions
+
+### Learnings:
+- SQLite's ON CONFLICT clause (requires 3.24.0+) is more widely supported than RETURNING (requires 3.35.0+)
+- NULL values in unique indexes behave differently in SQLite - multiple rows with NULL values can exist
+- Go's json.Marshal sorts map keys by default, providing canonical output for database comparisons
+- Transaction wrapping for DDL statements ensures atomicity even for CREATE IF NOT EXISTS operations
+
+### Deep Dive: Key Technical Decisions
+
+#### 1. Why NOT NULL on Foreign Keys in Unique Indexes
+- **Problem**: SQLite treats NULL != NULL in unique constraints, allowing duplicate entries
+- **Example**: Could have multiple metrics with same name but NULL resource_id
+- **Solution**: Made resource_id and scope_id NOT NULL to enforce true uniqueness
+- **OTLP Compliance**: Every metric MUST have a resource and scope per spec
+
+#### 2. Transaction Wrapping for Schema Creation
+- **Problem**: Partial schema creation on failure leaves database inconsistent
+- **Benefits**:
+  - Atomic rollback if any table/index fails
+  - Better error recovery (no manual cleanup needed)
+  - Performance improvement (single transaction vs multiple)
+  - SQLite wraps each statement in implicit transaction anyway
+- **Pattern**: defer tx.Rollback() ensures cleanup even on panic
+
+#### 3. Safe Type Extraction with getStringFromMap
+- **Problem**: Direct type assertions on map[string]interface{} can panic
+- **Real Risk**: External OTLP data might have wrong types (e.g., number instead of string)
+- **Solution**: Two-level safety check:
+  1. Check key exists and not nil
+  2. Use safe type assertion with ok flag
+- **Result**: Server stays running even with malformed input
+
+### SQLite Version Requirements
+- **Minimum**: SQLite 3.24.0 (released 2018-06-04)
+- **Required for**: ON CONFLICT clause support
+- **Not using**: RETURNING clause (requires 3.35.0+, released 2021-03-12)
+- **Rationale**: Broader compatibility with enterprise Linux distributions
+
 ## [2025-01-19] - PR #2: v0.2 File Output
 
 ### Actions:

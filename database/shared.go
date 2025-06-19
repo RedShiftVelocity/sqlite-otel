@@ -7,129 +7,115 @@ import (
 	"time"
 )
 
-// GetOrCreateResource finds or creates a resource and returns its ID
-func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, error) {
-	attributes, _ := resource["attributes"]
-	
-	var schemaURL string
-	if su, ok := resource["schemaUrl"]; ok && su != nil {
-		if s, ok := su.(string); ok {
-			schemaURL = s
+// getStringFromMap safely extracts a string value from a map[string]interface{}
+func getStringFromMap(m map[string]interface{}, key string) (string, error) {
+	var val string
+	if v, ok := m[key]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			val = s
 		} else {
-			return 0, fmt.Errorf("resource schemaUrl has invalid type: %T", su)
+			return "", fmt.Errorf("key '%s' has invalid type: %T", key, v)
 		}
 	}
+	return val, nil
+}
+
+// GetOrCreateResource finds or creates a resource and returns its ID
+func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, error) {
+	// Explicitly handle attributes extraction
+	attributes, ok := resource["attributes"]
+	if !ok || attributes == nil {
+		attributes = make(map[string]interface{}) // Default to empty map
+	}
 	
+	schemaURL, err := getStringFromMap(resource, "schemaUrl")
+	if err != nil {
+		return 0, fmt.Errorf("resource %w", err)
+	}
+	
+	// Marshal attributes to a canonical JSON string.
+	// NOTE: Go's standard json.Marshal sorts map keys, which is essential
+	// for the UNIQUE index on the attributes column to work correctly.
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal resource attributes: %w", err)
 	}
 
-	// Try to find existing resource
-	var id int64
-	var schemaURLValue interface{}
-	if schemaURL != "" {
-		schemaURLValue = schemaURL
-	}
-	
-	err = tx.QueryRow(
-		"SELECT id FROM resources WHERE attributes = ? AND schema_url IS ?",
-		string(attributesJSON), schemaURLValue,
-	).Scan(&id)
-	
-	if err == nil {
-		return id, nil // Found existing resource
-	}
-	
-	if err != sql.ErrNoRows {
-		return 0, fmt.Errorf("failed to query resource: %w", err)
-	}
-
-	// Create new resource
-	result, err := tx.Exec(
-		"INSERT INTO resources (attributes, schema_url) VALUES (?, ?)",
-		string(attributesJSON), schemaURLValue,
+	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
+	// This approach works with SQLite 3.24.0+ (ON CONFLICT requires 3.24.0+)
+	_, err = tx.Exec(`
+		INSERT INTO resources (attributes, schema_url) VALUES (?, ?)
+		ON CONFLICT(attributes, schema_url) DO NOTHING`,
+		string(attributesJSON), schemaURL,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert resource: %w", err)
 	}
-
-	return result.LastInsertId()
+	
+	// Now select the ID of the guaranteed-to-exist row
+	var id int64
+	err = tx.QueryRow(`
+		SELECT id FROM resources WHERE attributes = ? AND schema_url = ?`,
+		string(attributesJSON), schemaURL,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get resource id: %w", err)
+	}
+	
+	return id, nil
 }
 
 // GetOrCreateScope finds or creates an instrumentation scope and returns its ID
 func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
-	var name, version, schemaURL string
-	
-	// Safe extraction of name
-	if n, ok := scope["name"]; ok && n != nil {
-		if s, ok := n.(string); ok {
-			name = s
-		} else {
-			return 0, fmt.Errorf("scope name has invalid type: %T", n)
-		}
+	name, err := getStringFromMap(scope, "name")
+	if err != nil {
+		return 0, fmt.Errorf("scope %w", err)
+	}
+	version, err := getStringFromMap(scope, "version")
+	if err != nil {
+		return 0, fmt.Errorf("scope %w", err)
+	}
+	schemaURL, err := getStringFromMap(scope, "schemaUrl")
+	if err != nil {
+		return 0, fmt.Errorf("scope %w", err)
 	}
 	
-	// Safe extraction of version
-	if v, ok := scope["version"]; ok && v != nil {
-		if s, ok := v.(string); ok {
-			version = s
-		} else {
-			return 0, fmt.Errorf("scope version has invalid type: %T", v)
-		}
+	// Explicitly handle attributes extraction
+	attributes, ok := scope["attributes"]
+	if !ok || attributes == nil {
+		attributes = make(map[string]interface{}) // Default to empty map
 	}
-	
-	// Safe extraction of schemaUrl
-	if su, ok := scope["schemaUrl"]; ok && su != nil {
-		if s, ok := su.(string); ok {
-			schemaURL = s
-		} else {
-			return 0, fmt.Errorf("scope schemaUrl has invalid type: %T", su)
-		}
-	}
-	
-	attributes, _ := scope["attributes"]
 
+	// Marshal attributes to a canonical JSON string.
+	// NOTE: Go's standard json.Marshal sorts map keys, which is essential
+	// for the UNIQUE index on the attributes column to work correctly.
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal scope attributes: %w", err)
 	}
 
-	// Try to find existing scope
-	var id int64
-	var versionValue, schemaURLValue interface{}
-	if version != "" {
-		versionValue = version
-	}
-	if schemaURL != "" {
-		schemaURLValue = schemaURL
-	}
-	
-	err = tx.QueryRow(
-		`SELECT id FROM instrumentation_scopes 
-		WHERE name = ? AND version IS ? 
-		AND attributes = ? AND schema_url IS ?`,
-		name, versionValue, string(attributesJSON), schemaURLValue,
-	).Scan(&id)
-	
-	if err == nil {
-		return id, nil // Found existing scope
-	}
-	
-	if err != sql.ErrNoRows {
-		return 0, fmt.Errorf("failed to query scope: %w", err)
-	}
-
-	// Create new scope
-	result, err := tx.Exec(
-		"INSERT INTO instrumentation_scopes (name, version, attributes, schema_url) VALUES (?, ?, ?, ?)",
-		name, versionValue, string(attributesJSON), schemaURLValue,
+	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
+	_, err = tx.Exec(`
+		INSERT INTO instrumentation_scopes (name, version, attributes, schema_url) VALUES (?, ?, ?, ?)
+		ON CONFLICT(name, version, attributes, schema_url) DO NOTHING`,
+		name, version, string(attributesJSON), schemaURL,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert scope: %w", err)
 	}
-
-	return result.LastInsertId()
+	
+	// Now select the ID of the guaranteed-to-exist row
+	var id int64
+	err = tx.QueryRow(`
+		SELECT id FROM instrumentation_scopes 
+		WHERE name = ? AND version = ? AND attributes = ? AND schema_url = ?`,
+		name, version, string(attributesJSON), schemaURL,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get scope id: %w", err)
+	}
+	
+	return id, nil
 }
 
 // parseTimeNano converts a time string to Unix nanoseconds
@@ -146,38 +132,27 @@ func parseTimeNano(timeStr string) (int64, error) {
 
 // GetOrCreateMetric finds or creates a metric and returns its ID
 func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, resourceID, scopeID int64) (int64, error) {
-	// Try to find existing metric
-	var id int64
-	err := tx.QueryRow(
-		`SELECT id FROM metrics 
-		WHERE name = ? AND type = ? AND resource_id = ? AND scope_id = ?`,
-		name, metricType, resourceID, scopeID,
-	).Scan(&id)
-	
-	if err == nil {
-		return id, nil // Found existing metric
-	}
-	
-	if err != sql.ErrNoRows {
-		return 0, fmt.Errorf("failed to query metric: %w", err)
-	}
-
-	// Create new metric
-	result, err := tx.Exec(
-		"INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)",
+	// Use atomic INSERT ... ON CONFLICT DO NOTHING for compatibility with older SQLite
+	// We don't update description/unit on conflict to maintain consistency - first definition wins
+	_, err := tx.Exec(`
+		INSERT INTO metrics (name, description, unit, type, resource_id, scope_id) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name, type, resource_id, scope_id) DO NOTHING`,
 		name, description, unit, metricType, resourceID, scopeID,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert metric: %w", err)
 	}
-
-	return result.LastInsertId()
-}
-
-// getOrDefault returns the value if it exists, otherwise returns the default
-func getOrDefault(data map[string]interface{}, key string, defaultValue interface{}) interface{} {
-	if val, ok := data[key]; ok {
-		return val
+	
+	// Now select the ID of the guaranteed-to-exist row
+	var id int64
+	err = tx.QueryRow(`
+		SELECT id FROM metrics 
+		WHERE name = ? AND type = ? AND resource_id = ? AND scope_id = ?`,
+		name, metricType, resourceID, scopeID,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get metric id: %w", err)
 	}
-	return defaultValue
+	
+	return id, nil
 }

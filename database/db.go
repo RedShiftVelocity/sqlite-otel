@@ -37,27 +37,37 @@ func GetDB() *sql.DB {
 // CloseDB closes the database connection
 func CloseDB() {
 	if db != nil {
-		db.Close()
+		if err := db.Close(); err != nil {
+			// Use fmt.Printf since log package might not be available
+			fmt.Printf("failed to close database: %v\n", err)
+		}
 	}
 }
 
 // createTables creates all required tables
 func createTables() error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	// Defer a rollback. If the transaction is committed, this is a no-op.
+	defer tx.Rollback()
+
 	tables := []string{
 		// Resources table
 		`CREATE TABLE IF NOT EXISTS resources (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			attributes TEXT,
-			schema_url TEXT
+			attributes TEXT NOT NULL DEFAULT '{}',
+			schema_url TEXT NOT NULL DEFAULT ''
 		)`,
 
 		// Instrumentation scopes table
 		`CREATE TABLE IF NOT EXISTS instrumentation_scopes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT,
-			version TEXT,
-			attributes TEXT,
-			schema_url TEXT
+			name TEXT NOT NULL DEFAULT '',
+			version TEXT NOT NULL DEFAULT '',
+			attributes TEXT NOT NULL DEFAULT '{}',
+			schema_url TEXT NOT NULL DEFAULT ''
 		)`,
 
 		// Spans table
@@ -89,8 +99,8 @@ func createTables() error {
 			description TEXT,
 			unit TEXT,
 			type TEXT NOT NULL,
-			resource_id INTEGER,
-			scope_id INTEGER,
+			resource_id INTEGER NOT NULL,
+			scope_id INTEGER NOT NULL,
 			FOREIGN KEY (resource_id) REFERENCES resources (id),
 			FOREIGN KEY (scope_id) REFERENCES instrumentation_scopes (id)
 		)`,
@@ -137,13 +147,14 @@ func createTables() error {
 		// Create unique indexes for deduplication
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_unique ON resources(attributes, schema_url)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_scopes_unique ON instrumentation_scopes(name, version, attributes, schema_url)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_unique ON metrics(name, type, resource_id, scope_id)`,
 	}
 
 	for _, table := range tables {
-		if _, err := db.Exec(table); err != nil {
+		if _, err := tx.Exec(table); err != nil {
 			return fmt.Errorf("failed to create table: %w", err)
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
