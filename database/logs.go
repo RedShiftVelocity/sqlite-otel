@@ -82,12 +82,20 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 	// Parse timestamps
 	timeUnix := int64(0)
 	if t, ok := logRecord["timeUnixNano"].(string); ok && t != "" {
-		timeUnix = parseTimeNano(t)
+		var err error
+		timeUnix, err = parseTimeNano(t)
+		if err != nil {
+			return fmt.Errorf("failed to parse timeUnixNano: %w", err)
+		}
 	}
 
 	observedTime := int64(0)
 	if ot, ok := logRecord["observedTimeUnixNano"].(string); ok && ot != "" {
-		observedTime = parseTimeNano(ot)
+		var err error
+		observedTime, err = parseTimeNano(ot)
+		if err != nil {
+			return fmt.Errorf("failed to parse observedTimeUnixNano: %w", err)
+		}
 	}
 
 	// Extract severity
@@ -95,7 +103,16 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 	if sn, ok := logRecord["severityNumber"].(float64); ok {
 		severityNumber = int64(sn)
 	}
-	severityText, _ := logRecord["severityText"].(string)
+	
+	// Extract severity text with type checking
+	var severityText string
+	if st, ok := logRecord["severityText"]; ok && st != nil {
+		var ok bool
+		severityText, ok = st.(string)
+		if !ok {
+			return fmt.Errorf("invalid type for severityText: expected string, got %T", st)
+		}
+	}
 
 	// Extract body
 	var bodyJSON []byte
@@ -114,9 +131,24 @@ func InsertLogRecord(tx *sql.Tx, logRecord map[string]interface{}, resourceID, s
 		return fmt.Errorf("failed to marshal log attributes: %w", err)
 	}
 
-	// Extract trace context
-	traceID, _ := logRecord["traceId"].(string)
-	spanID, _ := logRecord["spanId"].(string)
+	// Extract trace context with type checking
+	var traceID string
+	if tid, ok := logRecord["traceId"]; ok && tid != nil {
+		var ok bool
+		traceID, ok = tid.(string)
+		if !ok {
+			return fmt.Errorf("invalid type for traceId: expected string, got %T", tid)
+		}
+	}
+	
+	var spanID string
+	if sid, ok := logRecord["spanId"]; ok && sid != nil {
+		var ok bool
+		spanID, ok = sid.(string)
+		if !ok {
+			return fmt.Errorf("invalid type for spanId: expected string, got %T", sid)
+		}
+	}
 
 	// Extract flags
 	flags := int64(0)
