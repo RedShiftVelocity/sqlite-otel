@@ -12,13 +12,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/RedShiftVelocity/sqlite-otel/database"
 	"github.com/RedShiftVelocity/sqlite-otel/handlers"
 )
 
 func main() {
 	// Define command-line flags
 	port := flag.Int("port", 4318, "Port to listen on (default: 4318, OTLP/HTTP standard)")
+	dbPath := flag.String("db-path", "otel-collector.db", "Path to SQLite database file (default: otel-collector.db)")
 	flag.Parse()
+
+	// Initialize database
+	if err := database.InitDB(*dbPath); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.CloseDB()
+
+	fmt.Printf("SQLite database initialized at: %s\n", *dbPath)
 
 	// Create a listener on specified port
 	address := fmt.Sprintf(":%d", *port)
