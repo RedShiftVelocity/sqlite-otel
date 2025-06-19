@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// getStringFromMap safely extracts a string value from a map[string]interface{}
+func getStringFromMap(m map[string]interface{}, key string) (string, error) {
+	var val string
+	if v, ok := m[key]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			val = s
+		} else {
+			return "", fmt.Errorf("key '%s' has invalid type: %T", key, v)
+		}
+	}
+	return val, nil
+}
+
 // GetOrCreateResource finds or creates a resource and returns its ID
 func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, error) {
 	// Explicitly handle attributes extraction
@@ -15,15 +28,14 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 		attributes = make(map[string]interface{}) // Default to empty map
 	}
 	
-	var schemaURL string
-	if su, ok := resource["schemaUrl"]; ok && su != nil {
-		if s, ok := su.(string); ok {
-			schemaURL = s
-		} else {
-			return 0, fmt.Errorf("resource schemaUrl has invalid type: %T", su)
-		}
+	schemaURL, err := getStringFromMap(resource, "schemaUrl")
+	if err != nil {
+		return 0, fmt.Errorf("resource %w", err)
 	}
 	
+	// Marshal attributes to a canonical JSON string.
+	// NOTE: Go's standard json.Marshal sorts map keys, which is essential
+	// for the UNIQUE index on the attributes column to work correctly.
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal resource attributes: %w", err)
@@ -55,33 +67,17 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 
 // GetOrCreateScope finds or creates an instrumentation scope and returns its ID
 func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
-	var name, version, schemaURL string
-	
-	// Safe extraction of name
-	if n, ok := scope["name"]; ok && n != nil {
-		if s, ok := n.(string); ok {
-			name = s
-		} else {
-			return 0, fmt.Errorf("scope name has invalid type: %T", n)
-		}
+	name, err := getStringFromMap(scope, "name")
+	if err != nil {
+		return 0, fmt.Errorf("scope %w", err)
 	}
-	
-	// Safe extraction of version
-	if v, ok := scope["version"]; ok && v != nil {
-		if s, ok := v.(string); ok {
-			version = s
-		} else {
-			return 0, fmt.Errorf("scope version has invalid type: %T", v)
-		}
+	version, err := getStringFromMap(scope, "version")
+	if err != nil {
+		return 0, fmt.Errorf("scope %w", err)
 	}
-	
-	// Safe extraction of schemaUrl
-	if su, ok := scope["schemaUrl"]; ok && su != nil {
-		if s, ok := su.(string); ok {
-			schemaURL = s
-		} else {
-			return 0, fmt.Errorf("scope schemaUrl has invalid type: %T", su)
-		}
+	schemaURL, err := getStringFromMap(scope, "schemaUrl")
+	if err != nil {
+		return 0, fmt.Errorf("scope %w", err)
 	}
 	
 	// Explicitly handle attributes extraction
@@ -90,6 +86,9 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 		attributes = make(map[string]interface{}) // Default to empty map
 	}
 
+	// Marshal attributes to a canonical JSON string.
+	// NOTE: Go's standard json.Marshal sorts map keys, which is essential
+	// for the UNIQUE index on the attributes column to work correctly.
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal scope attributes: %w", err)

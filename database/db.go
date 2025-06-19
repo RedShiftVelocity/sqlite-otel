@@ -37,12 +37,22 @@ func GetDB() *sql.DB {
 // CloseDB closes the database connection
 func CloseDB() {
 	if db != nil {
-		db.Close()
+		if err := db.Close(); err != nil {
+			// Use fmt.Printf since log package might not be available
+			fmt.Printf("failed to close database: %v\n", err)
+		}
 	}
 }
 
 // createTables creates all required tables
 func createTables() error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	// Defer a rollback. If the transaction is committed, this is a no-op.
+	defer tx.Rollback()
+
 	tables := []string{
 		// Resources table
 		`CREATE TABLE IF NOT EXISTS resources (
@@ -141,10 +151,10 @@ func createTables() error {
 	}
 
 	for _, table := range tables {
-		if _, err := db.Exec(table); err != nil {
+		if _, err := tx.Exec(table); err != nil {
 			return fmt.Errorf("failed to create table: %w", err)
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
