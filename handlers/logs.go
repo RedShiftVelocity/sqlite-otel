@@ -1,0 +1,46 @@
+package handlers
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+)
+
+func HandleLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Check Content-Type header
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		log.Printf("Unsupported Content-Type for logs: %s", contentType)
+		http.Error(w, "Only application/json Content-Type is supported", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	// Read the request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Error reading logs request body: %v", err)
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// Print the raw data to stdout
+	fmt.Println("=== LOGS DATA ===")
+	fmt.Println(string(body))
+	fmt.Println("=================")
+
+	// Log request details
+	log.Printf("Received logs request - Content-Type: %s, Content-Length: %d", 
+		r.Header.Get("Content-Type"), len(body))
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{}`))
+}

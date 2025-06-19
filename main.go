@@ -1,0 +1,83 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/RedShiftVelocity/sqlite-otel/handlers"
+)
+
+func main() {
+	// Define command-line flags
+	port := flag.Int("port", 4318, "Port to listen on (default: 4318, OTLP/HTTP standard)")
+	flag.Parse()
+
+	// Create a listener on specified port
+	address := fmt.Sprintf(":%d", *port)
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		if *port == 4318 {
+			log.Fatalf("Failed to create listener on port %d: %v\nPort 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)", 
+				*port, err, os.Args[0], os.Args[0])
+		} else {
+			log.Fatalf("Failed to create listener on port %d: %v", *port, err)
+		}
+	}
+	
+	// Get the actual port that was assigned
+	actualPort := listener.Addr().(*net.TCPAddr).Port
+	fmt.Printf("OTLP/HTTP receiver listening on port %d\n", actualPort)
+	
+	// Create HTTP mux and register OTLP endpoints
+	mux := http.NewServeMux()
+	
+	// Register OTLP endpoints
+	mux.HandleFunc("/v1/traces", handlers.HandleTraces)
+	mux.HandleFunc("/v1/metrics", handlers.HandleMetrics)
+	mux.HandleFunc("/v1/logs", handlers.HandleLogs)
+	
+	// Create HTTP server
+	server := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	
+	// Channel to listen for interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	// Channel to signal server shutdown completion
+	done := make(chan bool, 1)
+	
+	// Start server in a goroutine
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+	
+	// Wait for interrupt signal
+	<-sigChan
+	fmt.Println("\nShutting down server...")
+	
+	// Create a deadline for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	// Shutdown the server gracefully
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	}
+	
+	close(done)
+	fmt.Println("Server stopped")
+}
