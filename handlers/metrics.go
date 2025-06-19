@@ -48,8 +48,9 @@ func HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	// Store metrics in database
 	if err := database.InsertMetricsData(metricsData); err != nil {
 		log.Printf("Error storing metrics in database: %v", err)
-		// Note: We don't return an error to the client here to maintain compatibility
-		// The data is still written to file, so we can continue
+		// Return 500 Internal Server Error as per OTLP/HTTP spec
+		http.Error(w, "Failed to process metrics data", http.StatusInternalServerError)
+		return
 	}
 
 	// Log request details

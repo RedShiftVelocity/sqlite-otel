@@ -48,8 +48,9 @@ func HandleLogs(w http.ResponseWriter, r *http.Request) {
 	// Store logs in database
 	if err := database.InsertLogsData(logsData); err != nil {
 		log.Printf("Error storing logs in database: %v", err)
-		// Note: We don't return an error to the client here to maintain compatibility
-		// The data is still written to file, so we can continue
+		// Return 500 Internal Server Error as per OTLP/HTTP spec
+		http.Error(w, "Failed to process logs data", http.StatusInternalServerError)
+		return
 	}
 
 	// Log request details

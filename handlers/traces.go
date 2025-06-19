@@ -48,8 +48,9 @@ func HandleTraces(w http.ResponseWriter, r *http.Request) {
 	// Store traces in database
 	if err := database.InsertTraceData(tracesData); err != nil {
 		log.Printf("Error storing traces in database: %v", err)
-		// Note: We don't return an error to the client here to maintain compatibility
-		// The data is still written to file, so we can continue
+		// Return 500 Internal Server Error as per OTLP/HTTP spec
+		http.Error(w, "Failed to process trace data", http.StatusInternalServerError)
+		return
 	}
 
 	// Log request details
