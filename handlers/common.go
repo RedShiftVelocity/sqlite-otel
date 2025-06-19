@@ -22,8 +22,8 @@ func WriteTelemetryData(telemetryType string, body string) error {
 
 	// Synchronize writes to stdout to prevent race conditions
 	writeMutex.Lock()
+	defer writeMutex.Unlock()
 	fmt.Println(string(jsonData))
-	writeMutex.Unlock()
 	
 	return nil
 }
