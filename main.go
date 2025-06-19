@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,8 +20,17 @@ import (
 func main() {
 	// Define command-line flags
 	port := flag.Int("port", 4318, "Port to listen on (default: 4318, OTLP/HTTP standard)")
-	dbPath := flag.String("db-path", "otel-collector.db", "Path to SQLite database file (default: otel-collector.db)")
+	
+	// Determine default database path following XDG Base Directory specification
+	defaultDBPath := getDefaultDBPath()
+	dbPath := flag.String("db-path", defaultDBPath, "Path to SQLite database file (default: "+defaultDBPath+")")
 	flag.Parse()
+
+	// Ensure directory exists
+	dbDir := filepath.Dir(*dbPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		log.Fatalf("Failed to create database directory: %v", err)
+	}
 
 	// Initialize database
 	if err := database.InitDB(*dbPath); err != nil {
@@ -90,4 +100,23 @@ func main() {
 	
 	close(done)
 	fmt.Println("Server stopped")
+}
+
+// getDefaultDBPath returns the default database path following XDG Base Directory specification
+func getDefaultDBPath() string {
+	// First check XDG_DATA_HOME
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	
+	if dataHome == "" {
+		// If XDG_DATA_HOME is not set, use ~/.local/share
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Fallback to current directory if home directory can't be determined
+			return "otel-collector.db"
+		}
+		dataHome = filepath.Join(homeDir, ".local", "share")
+	}
+	
+	// Create the sqlite-otel subdirectory path
+	return filepath.Join(dataHome, "sqlite-otel", "otel-collector.db")
 }
