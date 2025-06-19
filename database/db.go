@@ -127,12 +127,16 @@ func createTables() error {
 			FOREIGN KEY (scope_id) REFERENCES instrumentation_scopes (id)
 		)`,
 
-		// Create indexes
+		// Create indexes for performance
 		`CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans(trace_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_spans_resource_id ON spans(resource_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_metrics_resource_id ON metrics(resource_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_log_records_trace_id ON log_records(trace_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_log_records_resource_id ON log_records(resource_id)`,
+		
+		// Create unique indexes for deduplication
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_unique ON resources(attributes, schema_url)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_scopes_unique ON instrumentation_scopes(name, version, attributes, schema_url)`,
 	}
 
 	for _, table := range tables {
