@@ -3,6 +3,10 @@
 ## Overview
 This project involves creating a standalone Go binary that functions as an OpenTelemetry collector service, designed to receive telemetry data and persist it to an embedded SQLite database. The service will be deployable as both an on-demand process and a system service on Linux systems.
 
+## Requirements
+- Go 1.21 or higher
+- SQLite 3.24.0 or higher (for ON CONFLICT clause support)
+
 ## Core Architecture
 The Go binary will implement a lightweight OTEL collector that listens on an ephemeral port for incoming telemetry data (traces, metrics, and logs) in OpenTelemetry Protocol (OTLP) format. Upon receiving data, it will immediately persist the information to a local SQLite database using an embedded database approach. This eliminates external dependencies and simplifies deployment while maintaining data durability.
 
