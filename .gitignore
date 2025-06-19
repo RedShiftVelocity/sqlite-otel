@@ -35,3 +35,8 @@ go.work.sum
 sqlite-otel
 sqlite-otel-collector
 sqlite-otel-collector-*
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
