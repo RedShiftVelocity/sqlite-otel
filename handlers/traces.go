@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/RedShiftVelocity/sqlite-otel/database"
 )
 
 func HandleTraces(w http.ResponseWriter, r *http.Request) {
@@ -29,9 +32,24 @@ func HandleTraces(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Write telemetry data to file
+	// Write telemetry data to file (maintaining dual storage)
 	if err := WriteTelemetryData("trace", string(body)); err != nil {
 		log.Printf("Error writing traces data to file: %v", err)
+	}
+
+	// Parse JSON body
+	var tracesData map[string]interface{}
+	if err := json.Unmarshal(body, &tracesData); err != nil {
+		log.Printf("Error parsing traces JSON: %v", err)
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	// Store traces in database
+	if err := database.InsertTraceData(tracesData); err != nil {
+		log.Printf("Error storing traces in database: %v", err)
+		// Note: We don't return an error to the client here to maintain compatibility
+		// The data is still written to file, so we can continue
 	}
 
 	// Log request details
