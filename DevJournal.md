@@ -1,5 +1,34 @@
 # Development Journal
 
+## [2025-06-19] - PR #25: Fix Race Conditions in GetOrCreate Functions
+### Actions: 
+- Replaced RETURNING clause with INSERT ON CONFLICT DO NOTHING + SELECT pattern for SQLite 3.24.0+ compatibility
+- Added explicit NULL handling for attributes with default empty map
+- Made resource_id and scope_id NOT NULL in metrics table to prevent NULL duplicates in unique index
+- Removed unused getOrDefault function
+- Implemented code quality improvements from O3-mini and Gemini reviews
+- Added getStringFromMap helper function to reduce code duplication
+- Added documentation for JSON marshaling behavior
+- Wrapped schema creation in transaction for atomicity
+- Added error handling for database close operation
+
+### Decisions:
+- Used INSERT ON CONFLICT DO NOTHING + SELECT pattern instead of RETURNING for broader SQLite compatibility
+- Made all foreign key columns NOT NULL in tables with unique indexes to prevent NULL duplicates
+- Used fmt.Printf for database close errors since log package might not be available during shutdown
+- Kept json.Marshal for attributes serialization with documentation about key sorting behavior
+
+### Challenges:
+- RETURNING clause requires SQLite 3.35.0+ which may not be available in all environments
+- NULL values in unique indexes can lead to duplicate entries in SQLite
+- Balancing between code duplication and over-abstraction when extracting helper functions
+
+### Learnings:
+- SQLite's ON CONFLICT clause (requires 3.24.0+) is more widely supported than RETURNING (requires 3.35.0+)
+- NULL values in unique indexes behave differently in SQLite - multiple rows with NULL values can exist
+- Go's json.Marshal sorts map keys by default, providing canonical output for database comparisons
+- Transaction wrapping for DDL statements ensures atomicity even for CREATE IF NOT EXISTS operations
+
 ## [2025-01-19] - PR #2: v0.2 File Output
 
 ### Actions:
