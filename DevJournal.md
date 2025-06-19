@@ -1,5 +1,32 @@
 # Development Journal
 
+## [2025-01-19] - PR #2: v0.2 File Output
+
+### Actions:
+- Created common.go in handlers/ directory with WriteTelemetryData function
+- Implemented append-only file writing to telemetry.jsonl in JSON lines format
+- Updated all three handlers (traces.go, metrics.go, logs.go) to use common writer
+- Removed unused fmt imports from all handler files
+- Successfully built and tested compilation
+
+### Decisions:
+- Centralized file writing logic in common.go for code reuse
+- Used JSON lines format with structure: {"type": "trace/metrics/logs", "body": "<raw data>"}
+- Implemented thread-safe file access using sync.Mutex
+- Used sync.Once to ensure file is opened only once
+- File opened in append mode (O_APPEND) to preserve existing data
+- Basic error handling with logging, but doesn't fail requests on write errors
+
+### Challenges:
+- Initial build failed due to unused fmt imports after removing print statements
+- Fixed by removing unused imports from all handler files
+
+### Learnings:
+- JSON lines format (`.jsonl`) is ideal for append-only telemetry logging
+- sync.Once ensures one-time initialization in concurrent environments
+- Go's strict unused import checking helps maintain clean code
+- File operations should be non-blocking to avoid impacting request handling
+
 ## [2025-01-19] - PR #1: v0.1 Foundation
 
 ### Commit 1: Initial Hello World implementation

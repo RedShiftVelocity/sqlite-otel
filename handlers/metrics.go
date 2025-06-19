@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -30,10 +29,10 @@ func HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Print the raw data to stdout
-	fmt.Println("=== METRICS DATA ===")
-	fmt.Println(string(body))
-	fmt.Println("====================")
+	// Write telemetry data to file
+	if err := WriteTelemetryData("metrics", string(body)); err != nil {
+		log.Printf("Error writing metrics data to file: %v", err)
+	}
 
 	// Log request details
 	log.Printf("Received metrics request - Content-Type: %s, Content-Length: %d", 
