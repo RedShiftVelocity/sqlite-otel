@@ -157,11 +157,3 @@ func GetOrCreateMetric(tx *sql.Tx, name, description, unit, metricType string, r
 	
 	return id, nil
 }
-
-// getOrDefault returns the value if it exists, otherwise returns the default
-func getOrDefault(data map[string]interface{}, key string, defaultValue interface{}) interface{} {
-	if val, ok := data[key]; ok {
-		return val
-	}
-	return defaultValue
-}

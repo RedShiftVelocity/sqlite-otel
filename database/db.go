@@ -89,8 +89,8 @@ func createTables() error {
 			description TEXT,
 			unit TEXT,
 			type TEXT NOT NULL,
-			resource_id INTEGER,
-			scope_id INTEGER,
+			resource_id INTEGER NOT NULL,
+			scope_id INTEGER NOT NULL,
 			FOREIGN KEY (resource_id) REFERENCES resources (id),
 			FOREIGN KEY (scope_id) REFERENCES instrumentation_scopes (id)
 		)`,
