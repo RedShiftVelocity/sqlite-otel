@@ -40,3 +40,4 @@ sqlite-otel-collector-*
 *.db
 *.db-shm
 *.db-wal
+server_output.log
