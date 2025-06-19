@@ -26,12 +26,14 @@ func InsertTraceData(data map[string]interface{}) error {
 		}
 
 		// Get or create resource
-		var resourceID int64
-		if resource, ok := resourceSpan["resource"].(map[string]interface{}); ok {
-			resourceID, err = GetOrCreateResource(tx, resource)
-			if err != nil {
-				return fmt.Errorf("failed to process resource: %w", err)
-			}
+		resource, ok := resourceSpan["resource"].(map[string]interface{})
+		if !ok {
+			// Skip resourceSpan without resource
+			continue
+		}
+		resourceID, err := GetOrCreateResource(tx, resource)
+		if err != nil {
+			return fmt.Errorf("failed to process resource: %w", err)
 		}
 
 		// Process scope spans
@@ -47,12 +49,14 @@ func InsertTraceData(data map[string]interface{}) error {
 			}
 
 			// Get or create scope
-			var scopeID int64
-			if scope, ok := scopeSpan["scope"].(map[string]interface{}); ok {
-				scopeID, err = GetOrCreateScope(tx, scope)
-				if err != nil {
-					return fmt.Errorf("failed to process scope: %w", err)
-				}
+			scope, ok := scopeSpan["scope"].(map[string]interface{})
+			if !ok {
+				// Skip scopeSpan without scope
+				continue
+			}
+			scopeID, err := GetOrCreateScope(tx, scope)
+			if err != nil {
+				return fmt.Errorf("failed to process scope: %w", err)
 			}
 
 			// Process spans
@@ -101,12 +105,20 @@ func InsertSpan(tx *sql.Tx, span map[string]interface{}, resourceID, scopeID int
 
 	// Parse timestamps
 	startTime := int64(0)
-	if st, ok := span["startTimeUnixNano"].(string); ok {
-		startTime = parseTimeNano(st)
+	if st, ok := span["startTimeUnixNano"].(string); ok && st != "" {
+		var err error
+		startTime, err = parseTimeNano(st)
+		if err != nil {
+			return fmt.Errorf("invalid startTimeUnixNano: %w", err)
+		}
 	}
 	endTime := int64(0)
-	if et, ok := span["endTimeUnixNano"].(string); ok {
-		endTime = parseTimeNano(et)
+	if et, ok := span["endTimeUnixNano"].(string); ok && et != "" {
+		var err error
+		endTime, err = parseTimeNano(et)
+		if err != nil {
+			return fmt.Errorf("invalid endTimeUnixNano: %w", err)
+		}
 	}
 
 	// Marshal complex fields to JSON
