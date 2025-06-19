@@ -10,7 +10,15 @@ import (
 // GetOrCreateResource finds or creates a resource and returns its ID
 func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, error) {
 	attributes, _ := resource["attributes"]
-	schemaURL, _ := resource["schemaUrl"].(string)
+	
+	var schemaURL string
+	if su, ok := resource["schemaUrl"]; ok && su != nil {
+		if s, ok := su.(string); ok {
+			schemaURL = s
+		} else {
+			return 0, fmt.Errorf("resource schemaUrl has invalid type: %T", su)
+		}
+	}
 	
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
@@ -46,10 +54,36 @@ func GetOrCreateResource(tx *sql.Tx, resource map[string]interface{}) (int64, er
 
 // GetOrCreateScope finds or creates an instrumentation scope and returns its ID
 func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
-	name, _ := scope["name"].(string)
-	version, _ := scope["version"].(string)
+	var name, version, schemaURL string
+	
+	// Safe extraction of name
+	if n, ok := scope["name"]; ok && n != nil {
+		if s, ok := n.(string); ok {
+			name = s
+		} else {
+			return 0, fmt.Errorf("scope name has invalid type: %T", n)
+		}
+	}
+	
+	// Safe extraction of version
+	if v, ok := scope["version"]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			version = s
+		} else {
+			return 0, fmt.Errorf("scope version has invalid type: %T", v)
+		}
+	}
+	
+	// Safe extraction of schemaUrl
+	if su, ok := scope["schemaUrl"]; ok && su != nil {
+		if s, ok := su.(string); ok {
+			schemaURL = s
+		} else {
+			return 0, fmt.Errorf("scope schemaUrl has invalid type: %T", su)
+		}
+	}
+	
 	attributes, _ := scope["attributes"]
-	schemaURL, _ := scope["schemaUrl"].(string)
 
 	attributesJSON, err := json.Marshal(attributes)
 	if err != nil {
@@ -86,12 +120,15 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 }
 
 // parseTimeNano converts a time string to Unix nanoseconds
-func parseTimeNano(timeStr string) int64 {
+func parseTimeNano(timeStr string) (int64, error) {
+	if timeStr == "" {
+		return 0, nil // Empty timestamp is not an error
+	}
 	t, err := time.Parse(time.RFC3339Nano, timeStr)
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("failed to parse time '%s': %w", timeStr, err)
 	}
-	return t.UnixNano()
+	return t.UnixNano(), nil
 }
 
 // getOrDefault returns the value if it exists, otherwise returns the default
