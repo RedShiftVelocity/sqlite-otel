@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -38,8 +39,7 @@ func GetDB() *sql.DB {
 func CloseDB() {
 	if db != nil {
 		if err := db.Close(); err != nil {
-			// Use fmt.Printf since log package might not be available
-			fmt.Printf("failed to close database: %v\n", err)
+			log.Printf("failed to close database: %v", err)
 		}
 	}
 }

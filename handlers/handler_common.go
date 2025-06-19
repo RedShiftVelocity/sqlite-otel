@@ -24,6 +24,10 @@ func ProcessTelemetryRequest(w http.ResponseWriter, r *http.Request, telemetryTy
 		return
 	}
 
+	// Enforce request body size limit to prevent DoS attacks
+	const maxBodySize = 10 * 1024 * 1024 // 10 MB limit
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
+
 	// Read the request body
 	body, err := io.ReadAll(r.Body)
 	defer r.Body.Close()
