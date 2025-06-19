@@ -1,0 +1,1 @@
+I want you to read CLAUDE.md for broader rules and README.md for context. DevJournal.md is for history of changes. I want you to implement this request: $ARGUMENTS
