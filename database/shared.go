@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
+	"strconv"
 )
 
 // GetOrCreateResource finds or creates a resource and returns its ID
@@ -132,16 +132,18 @@ func GetOrCreateScope(tx *sql.Tx, scope map[string]interface{}) (int64, error) {
 	return result.LastInsertId()
 }
 
-// parseTimeNano converts a time string to Unix nanoseconds
+// parseTimeNano converts OTLP timestamp (string-encoded nanoseconds) to int64
 func parseTimeNano(timeStr string) (int64, error) {
 	if timeStr == "" {
 		return 0, nil // Empty timestamp is not an error
 	}
-	t, err := time.Parse(time.RFC3339Nano, timeStr)
+	// OTLP JSON sends timestamps as string-encoded nanoseconds since Unix epoch
+	// e.g., "1672531200000000000" for 2023-01-01 00:00:00 UTC
+	val, err := strconv.ParseInt(timeStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse time '%s': %w", timeStr, err)
+		return 0, fmt.Errorf("failed to parse timestamp '%s': %w", timeStr, err)
 	}
-	return t.UnixNano(), nil
+	return val, nil
 }
 
 // GetOrCreateMetric finds or creates a metric and returns its ID
