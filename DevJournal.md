@@ -1,5 +1,30 @@
 # Development Journal
 
+## [2025-06-19] - PR #27: OTLP/HTTP Protocol Compliance & Improvements
+### Actions:
+- Fixed HTTP status codes to return 500 on database errors (was returning 200)
+- Implemented Content-Type prefix matching for charset support
+- Made file write errors fail the request with proper error response
+- Created ProcessTelemetryRequest common function to eliminate code duplication
+- Reduced each handler from ~65 lines to ~10 lines
+
+### Decisions:
+- Used strings.HasPrefix for Content-Type to support "application/json; charset=utf-8"
+- Made all errors fail fast with appropriate HTTP status codes
+- Created central processing function to ensure consistent behavior across endpoints
+- Kept telemetry type as parameter to maintain clear endpoint separation
+
+### Challenges:
+- Balancing between code reuse and maintaining clear endpoint boundaries
+- Ensuring all error paths return appropriate HTTP status codes
+- Maintaining backward compatibility while improving error handling
+
+### Learnings:
+- OTLP/HTTP spec requires proper HTTP status codes for different error conditions
+- Content-Type headers often include charset parameters that need prefix matching
+- Significant code reduction possible through well-designed common functions
+- Go's function parameters can accept other functions, enabling clean abstraction
+
 ## [2025-06-19] - PR #25: Fix Race Conditions in GetOrCreate Functions
 ### Actions: 
 - Replaced RETURNING clause with INSERT ON CONFLICT DO NOTHING + SELECT pattern for SQLite 3.24.0+ compatibility
