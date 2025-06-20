@@ -109,9 +109,9 @@ func TestCompressionAndCleanup(t *testing.T) {
 		},
 	}
 	
-	// Create dummy backup files with timestamp format
+	// Create dummy backup files with timestamp format including microseconds
 	for i := 0; i < 5; i++ {
-		timestamp := time.Now().Add(time.Duration(-i) * time.Hour).Format("20060102-150405")
+		timestamp := time.Now().Add(time.Duration(-i) * time.Hour).Format("20060102-150405.000000")
 		backupPath := fmt.Sprintf("%s.%s", logPath, timestamp)
 		if err := ioutil.WriteFile(backupPath, []byte("backup"), 0644); err != nil {
 			t.Fatal(err)
@@ -120,7 +120,7 @@ func TestCompressionAndCleanup(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	
-	if err := logger.cleanupOldBackups(); err != nil {
+	if err := logger.cleanupOldBackupsLocked(); err != nil {
 		t.Fatal(err)
 	}
 	
@@ -151,7 +151,7 @@ func TestNeedsRotation(t *testing.T) {
 	}
 	
 	// Initially should not need rotation
-	if logger.needsRotation() {
+	if logger.needsRotationLocked() {
 		t.Error("Empty file should not need rotation")
 	}
 	
@@ -162,7 +162,7 @@ func TestNeedsRotation(t *testing.T) {
 	}
 	
 	// Now should need rotation
-	if !logger.needsRotation() {
+	if !logger.needsRotationLocked() {
 		t.Error("File exceeding MaxSize should need rotation")
 	}
 }

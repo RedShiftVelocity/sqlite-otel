@@ -30,6 +30,21 @@
 - `--log-max-age`: Days to retain old log files (default: 30)
 - `--log-compress`: Enable compression of rotated files (default: true)
 
+### Code Review Feedback (Gemini & O3-mini):
+Both reviewers identified critical concurrency issues:
+- **CRITICAL**: Race condition from spawning goroutine for every log message
+- **HIGH**: Loose backup file matching could delete unrelated files
+- **HIGH**: Excessive goroutine creation under high load
+- **MEDIUM**: Insufficient error logging during cleanup
+- **MEDIUM**: Timestamp collision risk with second-level precision
+
+### Fixes Implemented:
+- **Synchronous rotation**: Removed goroutine spawning, rotation now happens synchronously under mutex
+- **Robust file matching**: Validate timestamp format to ensure only backup files are matched
+- **Microsecond timestamps**: Added microseconds to prevent name collisions
+- **Enhanced error logging**: Added stderr logging for all error conditions
+- **Thread-safe design**: All rotation operations now happen under the existing logger mutex
+
 ## [2025-06-20] - PR #47: v0.5 Execution Logging Implementation
 ### Actions:
 - Added logging package with structured logging capabilities

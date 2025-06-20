@@ -93,13 +93,16 @@ func GetLogger() *Logger {
 
 // log is the internal logging method
 func (l *Logger) log(level, format string, v ...interface{}) {
-	// Check rotation before logging (non-blocking)
-	if l.rotationConfig != nil {
-		go l.checkRotation()
-	}
-	
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	
+	// Check and perform rotation synchronously under lock
+	if l.rotationConfig != nil && l.needsRotationLocked() {
+		if err := l.rotateLocked(); err != nil {
+			// Log error to stderr as fallback since logger might be in bad state
+			fmt.Fprintf(os.Stderr, "Log rotation failed: %v\n", err)
+		}
+	}
 	
 	msg := fmt.Sprintf(level+" "+format, v...)
 	if l.fileLogger != nil {

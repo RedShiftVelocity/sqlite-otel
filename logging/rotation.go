@@ -29,25 +29,25 @@ func DefaultRotationConfig() *RotationConfig {
 	}
 }
 
-// needsRotation checks if the current log file needs rotation
-func (l *Logger) needsRotation() bool {
+// needsRotationLocked checks if the current log file needs rotation
+// Must be called with l.mu held
+func (l *Logger) needsRotationLocked() bool {
 	if l.file == nil || l.rotationConfig == nil {
 		return false
 	}
 
 	stat, err := l.file.Stat()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to stat log file for rotation check: %v\n", err)
 		return false
 	}
 
 	return stat.Size() >= l.rotationConfig.MaxSize
 }
 
-// rotate performs log file rotation
-func (l *Logger) rotate() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
+// rotateLocked performs log file rotation
+// Must be called with l.mu held
+func (l *Logger) rotateLocked() error {
 	if l.file == nil || l.logPath == "" {
 		return nil
 	}
@@ -57,8 +57,8 @@ func (l *Logger) rotate() error {
 		return fmt.Errorf("failed to close log file: %w", err)
 	}
 
-	// Generate backup filename with timestamp
-	timestamp := time.Now().Format("20060102-150405")
+	// Generate backup filename with timestamp and microseconds for uniqueness
+	timestamp := time.Now().Format("20060102-150405.000000")
 	backupPath := fmt.Sprintf("%s.%s", l.logPath, timestamp)
 
 	// Rename current log file to backup
@@ -73,13 +73,15 @@ func (l *Logger) rotate() error {
 			fmt.Fprintf(os.Stderr, "Failed to compress log file: %v\n", err)
 		} else {
 			// Remove uncompressed file after successful compression
-			os.Remove(backupPath)
+			if err := os.Remove(backupPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to remove uncompressed log file %s: %v\n", backupPath, err)
+			}
 			backupPath += ".gz"
 		}
 	}
 
 	// Clean up old backups
-	if err := l.cleanupOldBackups(); err != nil {
+	if err := l.cleanupOldBackupsLocked(); err != nil {
 		// Log error but don't fail rotation
 		fmt.Fprintf(os.Stderr, "Failed to cleanup old backups: %v\n", err)
 	}
@@ -98,19 +100,22 @@ func (l *Logger) rotate() error {
 	return nil
 }
 
-// cleanupOldBackups removes old backup files based on MaxBackups and MaxAge
-func (l *Logger) cleanupOldBackups() error {
+// cleanupOldBackupsLocked removes old backup files based on MaxBackups and MaxAge
+// Must be called with l.mu held
+func (l *Logger) cleanupOldBackupsLocked() error {
 	if l.logPath == "" || l.rotationConfig == nil {
 		return nil
 	}
 
 	dir := filepath.Dir(l.logPath)
 	base := filepath.Base(l.logPath)
+	expectedPrefix := base + "."
 
 	// Find all backup files
 	var backups []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error walking path %s during log cleanup: %v\n", path, err)
 			return nil // Continue walking
 		}
 
@@ -119,12 +124,26 @@ func (l *Logger) cleanupOldBackups() error {
 		}
 
 		name := filepath.Base(path)
-		// Match backup files (with or without .gz extension)
-		if strings.HasPrefix(name, base+".") && 
-		   (strings.Contains(name, "-") || strings.HasSuffix(name, ".gz")) {
-			backups = append(backups, path)
+		if !strings.HasPrefix(name, expectedPrefix) {
+			return nil
 		}
 
+		// Extract timestamp part
+		timestampPart := strings.TrimPrefix(name, expectedPrefix)
+		if strings.HasSuffix(timestampPart, ".gz") {
+			timestampPart = strings.TrimSuffix(timestampPart, ".gz")
+		}
+
+		// Validate timestamp format (YYYYMMDD-HHMMSS or YYYYMMDD-HHMMSS.UUUUUU)
+		if _, err := time.Parse("20060102-150405", timestampPart); err != nil {
+			// Try with microseconds
+			if _, err := time.Parse("20060102-150405.000000", timestampPart); err != nil {
+				// Not a valid backup file
+				return nil
+			}
+		}
+
+		backups = append(backups, path)
 		return nil
 	})
 
@@ -134,9 +153,16 @@ func (l *Logger) cleanupOldBackups() error {
 
 	// Sort backups by modification time (newest first)
 	sort.Slice(backups, func(i, j int) bool {
-		iStat, _ := os.Stat(backups[i])
-		jStat, _ := os.Stat(backups[j])
-		if iStat == nil || jStat == nil {
+		iStat, errI := os.Stat(backups[i])
+		jStat, errJ := os.Stat(backups[j])
+		if errI != nil || errJ != nil {
+			// If we can't stat one of the files, maintain current order
+			if errI != nil {
+				fmt.Fprintf(os.Stderr, "Error statting backup file %s: %v\n", backups[i], errI)
+			}
+			if errJ != nil {
+				fmt.Fprintf(os.Stderr, "Error statting backup file %s: %v\n", backups[j], errJ)
+			}
 			return false
 		}
 		return iStat.ModTime().After(jStat.ModTime())
@@ -155,10 +181,13 @@ func (l *Logger) cleanupOldBackups() error {
 		for _, backup := range backups {
 			stat, err := os.Stat(backup)
 			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error statting backup file %s during age cleanup: %v\n", backup, err)
 				continue
 			}
 			if stat.ModTime().Before(cutoff) {
-				os.Remove(backup)
+				if err := os.Remove(backup); err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to remove old backup %s: %v\n", backup, err)
+				}
 			}
 		}
 	}
@@ -193,11 +222,3 @@ func compressFile(path string) error {
 	return nil
 }
 
-// checkRotation checks if rotation is needed and performs it
-func (l *Logger) checkRotation() {
-	if l.needsRotation() {
-		if err := l.rotate(); err != nil {
-			fmt.Fprintf(os.Stderr, "Log rotation failed: %v\n", err)
-		}
-	}
-}
