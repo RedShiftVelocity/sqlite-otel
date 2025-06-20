@@ -1,5 +1,42 @@
 # Development Journal
 
+## [2025-06-20] - PR #46: v0.4 Systemd Service Implementation
+### Actions:
+- Created systemd service file with security hardening options
+- Updated main.go to detect when running as a service and use /var/lib/sqlite-otel-collector/ for database storage
+- Created install-service.sh script for one-command installation
+- Service runs as dedicated sqlite-otel system user for security
+
+### Decisions:
+- Used INVOCATION_ID environment variable to detect systemd execution context
+- Service defaults to /var/lib/sqlite-otel-collector/otel-collector.db when running as service
+- Can be overridden with explicit --db-path argument if needed
+- Service type is "simple" for straightforward process management
+- Enabled automatic restart with 5-second delay on failure
+- Used journald for logging (StandardOutput=journal)
+- Applied security hardening: NoNewPrivileges, PrivateTmp, ProtectSystem=strict
+
+### Challenges:
+- Initial approach used brittle service detection logic
+- Fixed by making database path explicit in service configuration
+
+### Learnings:
+- systemd sets INVOCATION_ID for all service executions
+- ProtectSystem=strict requires explicit ReadWritePaths for writable directories
+- System users should use --no-create-home and /bin/false shell for security
+- Defer statements don't execute on log.Fatalf() - need proper error handling pattern
+- IdleTimeout in http.Server helps protect against slowloris attacks
+- Build flags -ldflags="-s -w" strip debugging info for smaller binaries
+- RestrictAddressFamilies and CapabilityBoundingSet provide additional systemd hardening
+
+### Code Review Improvements (from Gemini and O3):
+- **CRITICAL**: Refactored main() to use run() pattern ensuring database cleanup on all exit paths
+- Added proper error handling with fmt.Errorf instead of log.Fatalf
+- Added IdleTimeout: 120s to HTTP server configuration
+- Added type assertion check for TCP listener address
+- Enhanced systemd security with RestrictAddressFamilies and empty CapabilityBoundingSet
+- Added -ldflags="-s -w" to go build for optimized binary size
+
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
 - Reordered development roadmap to prioritize Service Mode implementation
