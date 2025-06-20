@@ -1,5 +1,34 @@
 # Development Journal
 
+## [2025-06-20] - PR #48: v0.6 SQLite-Only Storage
+### Actions:
+- Removed stdout/file output functionality from handlers
+- Deleted handlers/common.go containing WriteTelemetryData function
+- Updated handler_common.go to only store data in SQLite
+- Updated handler_common.go to use structured logging package
+- Replaced all log.Printf calls with appropriate logging levels
+- Changed logging to show only execution metadata, not telemetry data content
+
+### Decisions:
+- Simplified architecture by removing dual storage mechanism
+- All telemetry data now persists only to SQLite database
+- Execution logging continues to stdout and file (when configured)
+- Telemetry data content is not logged, only metadata (size, type, etc.)
+
+### Challenges:
+- Needed to update logging calls after merging with v0.5 logging implementation
+
+### Learnings:
+- Removing features can improve code clarity and maintainability
+- SQLite provides sufficient storage capabilities for telemetry data
+- Clear separation between execution logging and telemetry storage
+
+### Code Review Feedback (Gemini and O3):
+- Removal is correct and complete
+- Identified potential SQLite write contention under high load (pre-existing issue)
+- Suggested future improvements: queuing mechanism for writes, structured logging
+- These improvements are beyond v0.6 scope but noted for future work
+
 ## [2025-06-20] - PR #47: v0.5 Execution Logging Implementation
 ### Actions:
 - Added logging package with structured logging capabilities
