@@ -21,18 +21,25 @@ var (
 
 // Logger handles application logging
 type Logger struct {
-	file       *os.File
-	fileLogger *log.Logger
-	stdLogger  *log.Logger
-	mu         sync.Mutex
+	file           *os.File
+	fileLogger     *log.Logger
+	stdLogger      *log.Logger
+	mu             sync.Mutex
+	logPath        string
+	rotationConfig *RotationConfig
 }
 
 // Init initializes the logger with the given log file path
 func Init(logFilePath string) error {
+	return InitWithRotation(logFilePath, DefaultRotationConfig())
+}
+
+// InitWithRotation initializes the logger with rotation configuration
+func InitWithRotation(logFilePath string, config *RotationConfig) error {
 	var err error
 	initOnce.Do(func() {
 		var newL *Logger
-		newL, err = newLogger(logFilePath)
+		newL, err = newLoggerWithRotation(logFilePath, config)
 		if err == nil {
 			loggerMu.Lock()
 			globalLogger = newL
@@ -44,8 +51,15 @@ func Init(logFilePath string) error {
 
 // newLogger creates a new logger instance
 func newLogger(logFilePath string) (*Logger, error) {
+	return newLoggerWithRotation(logFilePath, nil)
+}
+
+// newLoggerWithRotation creates a new logger instance with rotation support
+func newLoggerWithRotation(logFilePath string, config *RotationConfig) (*Logger, error) {
 	l := &Logger{
-		stdLogger: log.New(os.Stdout, "", log.LstdFlags),
+		stdLogger:      log.New(os.Stdout, "", log.LstdFlags),
+		logPath:        logFilePath,
+		rotationConfig: config,
 	}
 
 	if logFilePath != "" {
@@ -79,6 +93,11 @@ func GetLogger() *Logger {
 
 // log is the internal logging method
 func (l *Logger) log(level, format string, v ...interface{}) {
+	// Check rotation before logging (non-blocking)
+	if l.rotationConfig != nil {
+		go l.checkRotation()
+	}
+	
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	

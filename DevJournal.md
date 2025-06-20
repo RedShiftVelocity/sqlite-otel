@@ -1,5 +1,35 @@
 # Development Journal
 
+## [2025-06-20] - PR #52: v0.5 Part 2 - Log Rotation Capabilities
+### Actions:
+- Added log rotation functionality to prevent unbounded log growth
+- Implemented size-based rotation with configurable limits
+- Added automatic compression of rotated files using gzip
+- Added retention policies based on file count and age
+- Added command-line flags for rotation configuration
+
+### Decisions:
+- Default 100MB max file size before rotation
+- Keep 7 backup files by default
+- Retain logs for 30 days maximum
+- Compress rotated files by default to save space
+- Non-blocking rotation check to avoid impacting performance
+
+### Challenges:
+- Ensuring thread-safe rotation during concurrent logging
+- Handling rotation failures gracefully without losing logs
+
+### Learnings:
+- Go's io.MultiWriter needs output update after file rotation
+- Gzip compression significantly reduces rotated log file sizes
+- Background rotation checks prevent blocking on log writes
+
+### Features Added:
+- `--log-max-size`: Maximum size in MB before rotation (default: 100)
+- `--log-max-backups`: Number of old log files to keep (default: 7)
+- `--log-max-age`: Days to retain old log files (default: 30)
+- `--log-compress`: Enable compression of rotated files (default: true)
+
 ## [2025-06-20] - PR #47: v0.5 Execution Logging Implementation
 ### Actions:
 - Added logging package with structured logging capabilities
