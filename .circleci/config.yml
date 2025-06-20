@@ -1,0 +1,119 @@
+version: 2.1
+
+executors:
+  go-executor:
+    docker:
+      - image: cimg/go:1.21
+    working_directory: ~/repo
+
+jobs:
+  test:
+    executor: go-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - run:
+          name: Download dependencies
+          command: go mod download
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-results
+            go test -race -coverprofile=coverage.out -v ./... | tee /tmp/test-results/go-test.out
+      - run:
+          name: Generate coverage report
+          command: |
+            go tool cover -html=coverage.out -o coverage.html
+            echo "Coverage report generated"
+      - store_test_results:
+          path: /tmp/test-results
+      - store_artifacts:
+          path: coverage.html
+          destination: coverage
+      - store_artifacts:
+          path: coverage.out
+          destination: coverage.out
+
+  build:
+    executor: go-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - run:
+          name: Download dependencies
+          command: go mod download
+      - run:
+          name: Build for current platform
+          command: |
+            make build
+            # Verify binary was created
+            ls -la sqlite-otel-collector
+      - run:
+          name: Build for all platforms
+          command: |
+            make build-all
+            ls -la sqlite-otel-collector-*
+      - store_artifacts:
+          path: sqlite-otel-collector*
+          destination: binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - sqlite-otel-collector*
+
+  release:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Create release archives
+          command: |
+            mkdir -p releases
+            for file in sqlite-otel-collector*; do
+              if [ -f "$file" ]; then
+                tar czf releases/${file}-${CIRCLE_TAG}.tar.gz $file
+                echo "Created releases/${file}-${CIRCLE_TAG}.tar.gz"
+              fi
+            done
+      - store_artifacts:
+          path: releases/
+          destination: releases
+
+workflows:
+  version: 2
+  test-and-build:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - build:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - release:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
