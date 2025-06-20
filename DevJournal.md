@@ -1,5 +1,24 @@
 # Development Journal
 
+## [2025-06-20] - Roadmap Reorganization
+### Actions:
+- Reordered development roadmap to prioritize Service Mode implementation
+- Moved v0.6 Service Mode to v0.4
+- Moved v0.4 Execution Logging to v0.5
+- Moved v0.5 SQLite Focus to v0.6
+
+### Decisions:
+- Prioritized systemd service integration earlier in the roadmap
+- Service mode capabilities provide more immediate value for deployment scenarios
+- Execution logging and SQLite-only focus can be implemented after service foundation is in place
+
+### Challenges:
+- None - straightforward reorganization of planned features
+
+### Learnings:
+- Service mode integration provides a stable foundation for subsequent features
+- Having service capabilities earlier enables better testing of logging and storage features
+
 ## [2025-06-19] - PR #27: OTLP/HTTP Protocol Compliance & Improvements
 ### Actions:
 - Fixed HTTP status codes to return 500 on database errors (was returning 200)
