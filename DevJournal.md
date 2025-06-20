@@ -1,5 +1,28 @@
 # Development Journal
 
+## [2025-06-20] - PR #X: v0.4 Systemd Service Implementation
+### Actions:
+- Updated main.go to detect when running as a service and use /var/lib/sqlite-otel-collector/ for database storage
+- Created systemd service file with security hardening options
+- Created install-service.sh script for one-command installation
+- Service runs as dedicated sqlite-otel system user for security
+
+### Decisions:
+- Used INVOCATION_ID environment variable to detect systemd execution context
+- Service type is "simple" for straightforward process management
+- Enabled automatic restart with 5-second delay on failure
+- Used journald for logging (StandardOutput=journal)
+- Applied security hardening: NoNewPrivileges, PrivateTmp, ProtectSystem=strict
+
+### Challenges:
+- Detecting service context reliably - used combination of uid, USER env, and INVOCATION_ID
+- Balancing security restrictions with necessary write access to database directory
+
+### Learnings:
+- systemd sets INVOCATION_ID for all service executions
+- ProtectSystem=strict requires explicit ReadWritePaths for writable directories
+- System users should use --no-create-home and /bin/false shell for security
+
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
 - Reordered development roadmap to prioritize Service Mode implementation

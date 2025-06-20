@@ -100,6 +100,12 @@ func main() {
 
 // getDefaultDBPath returns the default database path following XDG Base Directory specification
 func getDefaultDBPath() string {
+	// Check if running as root/service (uid 0 or no real user)
+	if os.Getuid() == 0 || os.Getenv("USER") == "" || os.Getenv("INVOCATION_ID") != "" {
+		// Running as a service, use system directory
+		return "/var/lib/sqlite-otel-collector/otel-collector.db"
+	}
+	
 	// First check XDG_DATA_HOME
 	dataHome := os.Getenv("XDG_DATA_HOME")
 	
