@@ -1,20 +1,24 @@
 package logging
 
 import (
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"time"
 )
 
 // RotationConfig defines log rotation parameters
 type RotationConfig struct {
-	MaxSize int64 // Maximum file size in bytes before rotation (default: 100MB)
+	MaxSize  int64 // Maximum file size in bytes before rotation (default: 100MB)
+	Compress bool  // Whether to compress rotated files (default: true)
 }
 
 // DefaultRotationConfig returns default rotation configuration
 func DefaultRotationConfig() *RotationConfig {
 	return &RotationConfig{
-		MaxSize: 100 * 1024 * 1024, // 100MB
+		MaxSize:  100 * 1024 * 1024, // 100MB
+		Compress: true,
 	}
 }
 
@@ -63,6 +67,50 @@ func (l *Logger) rotateLocked() error {
 
 	l.file = file
 	l.updateFileLogger()
+
+	// Compress the backup file asynchronously if configured
+	if l.rotationConfig != nil && l.rotationConfig.Compress {
+		go l.compressBackup(backupPath)
+	}
+
+	return nil
+}
+
+// compressBackup compresses a backup file in the background
+func (l *Logger) compressBackup(backupPath string) {
+	if err := compressFile(backupPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to compress log file %s: %v\n", backupPath, err)
+	} else {
+		// Remove uncompressed file after successful compression
+		if err := os.Remove(backupPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to remove uncompressed log file %s: %v\n", backupPath, err)
+		}
+	}
+}
+
+// compressFile compresses a file using gzip
+func compressFile(path string) error {
+	source, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destPath := path + ".gz"
+	dest, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	gz := gzip.NewWriter(dest)
+	defer gz.Close()
+
+	// Copy file contents
+	if _, err := io.Copy(gz, source); err != nil {
+		os.Remove(destPath) // Clean up on error
+		return err
+	}
 
 	return nil
 }
