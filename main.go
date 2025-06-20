@@ -68,8 +68,8 @@ func run(port int, dbPath string) error {
 	if err != nil {
 		logger.Error("Failed to create listener on port %d: %v", port, err)
 		if port == 4318 {
-			return fmt.Errorf("failed to create listener on port %d: %w\nPort 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)", 
-				port, err, os.Args[0], os.Args[0])
+			fmt.Fprintf(os.Stderr, "Port 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)\n", 
+				os.Args[0], os.Args[0])
 		}
 		return fmt.Errorf("failed to create listener on port %d: %w", port, err)
 	}
