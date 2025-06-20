@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  sqlite-otel-collector:
+    build: .
+    container_name: sqlite-otel-collector
+    ports:
+      - "4318:4318"
+    volumes:
+      - otel-data:/var/lib/sqlite-otel-collector
+      - otel-logs:/var/log
+    environment:
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4318/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  otel-data:
+    driver: local
+  otel-logs:
+    driver: local
