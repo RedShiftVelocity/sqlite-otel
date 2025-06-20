@@ -21,10 +21,12 @@ var (
 
 // Logger handles application logging
 type Logger struct {
-	file       *os.File
-	fileLogger *log.Logger
-	stdLogger  *log.Logger
-	mu         sync.Mutex
+	file           *os.File
+	fileLogger     *log.Logger
+	stdLogger      *log.Logger
+	mu             sync.Mutex
+	logPath        string
+	rotationConfig *RotationConfig
 }
 
 // Init initializes the logger with the given log file path
@@ -44,8 +46,15 @@ func Init(logFilePath string) error {
 
 // newLogger creates a new logger instance
 func newLogger(logFilePath string) (*Logger, error) {
+	return newLoggerWithRotation(logFilePath, nil)
+}
+
+// newLoggerWithRotation creates a new logger instance with rotation support
+func newLoggerWithRotation(logFilePath string, config *RotationConfig) (*Logger, error) {
 	l := &Logger{
-		stdLogger: log.New(os.Stdout, "", log.LstdFlags),
+		stdLogger:      log.New(os.Stdout, "", log.LstdFlags),
+		logPath:        logFilePath,
+		rotationConfig: config,
 	}
 
 	if logFilePath != "" {
@@ -81,6 +90,14 @@ func GetLogger() *Logger {
 func (l *Logger) log(level, format string, v ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	
+	// Check and perform rotation synchronously under lock
+	if l.rotationConfig != nil && l.needsRotationLocked() {
+		if err := l.rotateLocked(); err != nil {
+			// Log error to stderr as fallback since logger might be in bad state
+			fmt.Fprintf(os.Stderr, "Log rotation failed: %v\n", err)
+		}
+	}
 	
 	msg := fmt.Sprintf(level+" "+format, v...)
 	if l.fileLogger != nil {
