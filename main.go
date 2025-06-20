@@ -32,14 +32,18 @@ func main() {
 	
 	// Log rotation flags
 	logMaxSize := flag.Int64("log-max-size", 100, "Maximum size in MB before log rotation (default: 100)")
+	logMaxBackups := flag.Int("log-max-backups", 7, "Maximum number of old log files to retain (default: 7)")
+	logMaxAge := flag.Int("log-max-age", 30, "Maximum number of days to retain old log files (default: 30)")
 	logCompress := flag.Bool("log-compress", true, "Compress rotated log files (default: true)")
 	
 	flag.Parse()
 
 	// Initialize logging with rotation
 	rotationConfig := &logging.RotationConfig{
-		MaxSize:  *logMaxSize * 1024 * 1024, // Convert MB to bytes
-		Compress: *logCompress,
+		MaxSize:    *logMaxSize * 1024 * 1024, // Convert MB to bytes
+		MaxBackups: *logMaxBackups,
+		MaxAge:     *logMaxAge,
+		Compress:   *logCompress,
 	}
 	if err := logging.InitWithRotation(*logFile, rotationConfig); err != nil {
 		log.Fatalf("Failed to initialize logging: %v", err)

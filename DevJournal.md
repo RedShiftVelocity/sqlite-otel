@@ -1,5 +1,28 @@
 # Development Journal
 
+## [2025-06-20] - Log Rotation Implementation (3 Small PRs)
+### Actions:
+- Split original 669-line PR into 3 smaller, focused PRs
+- PR 1: Basic rotation (~195 lines) - size-based rotation only
+- PR 2: Compression (~139 lines) - gzip compression for rotated files
+- PR 3: Retention policies (~200 lines) - MaxBackups and MaxAge cleanup
+
+### Decisions:
+- Each PR builds on the previous one for incremental functionality
+- Async compression/cleanup to avoid blocking log operations
+- Filename-based timestamp parsing for reliable sorting
+- Conservative defaults: 100MB rotation, 7 backups, 30 days retention
+
+### Challenges:
+- Original PR too large for effective review
+- Race condition in InitWithRotation error handling (fixed)
+- Test flakiness with time.Sleep (documented in issue #61)
+
+### Learnings:
+- Smaller PRs are easier to review and merge
+- Incremental feature delivery reduces risk
+- Known limitations can be tracked as issues for future work
+
 ## [2025-06-20] - v0.7 CircleCI Configuration
 ### Actions:
 - Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline

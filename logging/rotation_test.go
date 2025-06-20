@@ -1,8 +1,10 @@
 package logging
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,6 +18,14 @@ func TestRotationConfig(t *testing.T) {
 	
 	if !config.Compress {
 		t.Error("Expected Compress to be true by default")
+	}
+	
+	if config.MaxBackups != 7 {
+		t.Errorf("Expected MaxBackups to be 7, got %d", config.MaxBackups)
+	}
+	
+	if config.MaxAge != 30 {
+		t.Errorf("Expected MaxAge to be 30, got %d", config.MaxAge)
 	}
 }
 
@@ -148,5 +158,138 @@ func TestRotationWithCompression(t *testing.T) {
 
 	if !foundCompressed {
 		t.Error("No compressed backup file found")
+	}
+}
+
+func TestMaxBackupsRetention(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "log-retention-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	logPath := filepath.Join(tmpDir, "test.log")
+
+	// Create some old backup files manually
+	now := time.Now()
+	for i := 0; i < 10; i++ {
+		ts := now.Add(-time.Duration(i) * time.Minute)
+		backupName := fmt.Sprintf("test.log.%s.gz", ts.Format("20060102-150405.000000"))
+		backupPath := filepath.Join(tmpDir, backupName)
+		if err := os.WriteFile(backupPath, []byte("old log data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Create logger with MaxBackups=3
+	config := &RotationConfig{
+		MaxSize:    1024 * 1024, // 1MB (won't trigger rotation in this test)
+		MaxBackups: 3,
+		MaxAge:     30,
+		Compress:   true,
+	}
+
+	logger, err := newLoggerWithRotation(logPath, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Trigger cleanup by writing a message (won't rotate due to size)
+	logger.Info("Test message")
+	
+	// Manually trigger cleanup
+	logger.cleanupOldBackups()
+	
+	logger.Close()
+
+	// Check remaining files
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Count backup files
+	var backupCount int
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".gz") {
+			backupCount++
+		}
+	}
+
+	// Should have exactly MaxBackups files
+	if backupCount != config.MaxBackups {
+		t.Errorf("Expected %d backup files, got %d", config.MaxBackups, backupCount)
+	}
+}
+
+func TestMaxAgeRetention(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "log-age-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	logPath := filepath.Join(tmpDir, "test.log")
+
+	// Create some old backup files
+	now := time.Now()
+	oldTimestamps := []time.Time{
+		now.AddDate(0, 0, -40), // 40 days old
+		now.AddDate(0, 0, -35), // 35 days old  
+		now.AddDate(0, 0, -25), // 25 days old (should be kept)
+		now.AddDate(0, 0, -10), // 10 days old (should be kept)
+	}
+
+	for _, ts := range oldTimestamps {
+		backupName := fmt.Sprintf("test.log.%s.gz", ts.Format("20060102-150405.000000"))
+		backupPath := filepath.Join(tmpDir, backupName)
+		if err := os.WriteFile(backupPath, []byte("old log data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Create logger with MaxAge=30 days
+	config := &RotationConfig{
+		MaxSize:    1024 * 1024,
+		MaxBackups: 10, // High enough to not affect this test
+		MaxAge:     30,
+		Compress:   true,
+	}
+
+	logger, err := newLoggerWithRotation(logPath, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Manually trigger cleanup
+	logger.cleanupOldBackups()
+	
+	logger.Close()
+
+	// Check remaining files
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that old files were removed
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".gz") {
+			// Parse timestamp from filename
+			tsPart := strings.TrimPrefix(entry.Name(), "test.log.")
+			tsPart = strings.TrimSuffix(tsPart, ".gz")
+			ts, err := time.Parse("20060102-150405.000000", tsPart)
+			if err != nil {
+				continue
+			}
+
+			age := now.Sub(ts).Hours() / 24 // Age in days
+			if age > 30 {
+				t.Errorf("Found backup file older than %d days: %s (%.0f days old)", 
+					config.MaxAge, entry.Name(), age)
+			}
+		}
 	}
 }

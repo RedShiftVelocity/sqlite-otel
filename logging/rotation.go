@@ -5,20 +5,27 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
 // RotationConfig defines log rotation parameters
 type RotationConfig struct {
-	MaxSize  int64 // Maximum file size in bytes before rotation (default: 100MB)
-	Compress bool  // Whether to compress rotated files (default: true)
+	MaxSize    int64 // Maximum file size in bytes before rotation (default: 100MB)
+	MaxBackups int   // Maximum number of backup files to keep (default: 7)
+	MaxAge     int   // Maximum age in days to keep backup files (default: 30)
+	Compress   bool  // Whether to compress rotated files (default: true)
 }
 
 // DefaultRotationConfig returns default rotation configuration
 func DefaultRotationConfig() *RotationConfig {
 	return &RotationConfig{
-		MaxSize:  100 * 1024 * 1024, // 100MB
-		Compress: true,
+		MaxSize:    100 * 1024 * 1024, // 100MB
+		MaxBackups: 7,
+		MaxAge:     30,
+		Compress:   true,
 	}
 }
 
@@ -86,6 +93,11 @@ func (l *Logger) compressBackup(backupPath string) {
 			fmt.Fprintf(os.Stderr, "Failed to remove uncompressed log file %s: %v\n", backupPath, err)
 		}
 	}
+	
+	// Clean up old backups
+	if err := l.cleanupOldBackups(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to cleanup old backups: %v\n", err)
+	}
 }
 
 // compressFile compresses a file using gzip
@@ -110,6 +122,84 @@ func compressFile(path string) error {
 	if _, err := io.Copy(gz, source); err != nil {
 		os.Remove(destPath) // Clean up on error
 		return err
+	}
+
+	return nil
+}
+
+// backupFile represents a backup log file with parsed timestamp
+type backupFile struct {
+	path string
+	ts   time.Time
+}
+
+// cleanupOldBackups removes old backup files based on MaxBackups and MaxAge
+func (l *Logger) cleanupOldBackups() error {
+	if l.logPath == "" || l.rotationConfig == nil {
+		return nil
+	}
+
+	dir := filepath.Dir(l.logPath)
+	base := filepath.Base(l.logPath)
+	expectedPrefix := base + "."
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("could not read log directory: %w", err)
+	}
+
+	var backups []backupFile
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), expectedPrefix) {
+			continue
+		}
+
+		name := file.Name()
+		timestampPart := strings.TrimPrefix(name, expectedPrefix)
+		if strings.HasSuffix(timestampPart, ".gz") {
+			timestampPart = strings.TrimSuffix(timestampPart, ".gz")
+		}
+
+		// Try parsing with microseconds first
+		ts, err := time.Parse("20060102-150405.000000", timestampPart)
+		if err != nil {
+			continue // Not a valid backup file format
+		}
+		backups = append(backups, backupFile{path: filepath.Join(dir, name), ts: ts})
+	}
+
+	// Sort backups by timestamp, newest first
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].ts.After(backups[j].ts)
+	})
+
+	// Identify files to delete based on both policies
+	var toDelete []string
+	ageLimit := time.Now().AddDate(0, 0, -l.rotationConfig.MaxAge)
+
+	for i, b := range backups {
+		shouldDelete := false
+		
+		// Check against MaxBackups
+		if l.rotationConfig.MaxBackups > 0 && i >= l.rotationConfig.MaxBackups {
+			shouldDelete = true
+		}
+		
+		// Check against MaxAge
+		if l.rotationConfig.MaxAge > 0 && b.ts.Before(ageLimit) {
+			shouldDelete = true
+		}
+		
+		if shouldDelete {
+			toDelete = append(toDelete, b.path)
+		}
+	}
+
+	// Delete identified files
+	for _, path := range toDelete {
+		if err := os.Remove(path); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to remove old backup %s: %v\n", path, err)
+		}
 	}
 
 	return nil
