@@ -1,5 +1,29 @@
 # Development Journal
 
+## [2025-06-20] - Breaking Down Large PR #60 into Smaller PRs
+### Actions:
+- Analyzed PR #60 (668 lines) with Gemini to identify logical breakpoints
+- Split into 3 focused PRs:
+  1. Core rotation engine (PR #62)
+  2. Compression support 
+  3. Integration & configuration
+- Implemented each PR with passing tests
+
+### Decisions:
+- Separated core functionality from features and integration
+- Made compression a separate feature layer
+- Kept CLI flag integration as final step
+
+### Challenges:
+- Original PR too large for comfortable review
+- Ensuring each PR builds and tests independently
+- Managing dependencies between PRs
+
+### Learnings:
+- Breaking down by architectural boundaries works well
+- Core engine → Features → Integration is a natural progression
+- Smaller PRs get reviewed faster and with better quality
+
 ## [2025-06-20] - v0.7 CircleCI Configuration
 ### Actions:
 - Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline
