@@ -1,5 +1,39 @@
 # Development Journal
 
+## [2025-06-20] - PR #52 (rebased): Log Rotation Capabilities (v0.5 part 2)
+### Actions:
+- Rebased PR #52 from main to extract only log rotation functionality
+- Created clean branch `feature/log-rotation-only` excluding already-merged v0.5 changes
+- Implemented asynchronous compression and cleanup per Gemini's code review
+- Fixed cleanup logic to use filename timestamps instead of file modification times
+- Added comprehensive tests for MaxBackups, MaxAge, and concurrent logging scenarios
+
+### Decisions:
+- Extracted minimal log rotation functionality from conflicted PR
+- Made compression/cleanup asynchronous to avoid blocking during rotation
+- Used microsecond timestamps in filenames to prevent collisions
+- Parse timestamps from filenames for reliable sorting (not file mtime)
+- Size-based rotation with configurable retention policies
+
+### Challenges:
+- Original PR had conflicts due to already-merged v0.5 execution logging
+- Synchronous compression was causing performance bottlenecks
+- File modification times were unreliable for sorting backups
+- Race conditions in concurrent cleanup operations
+
+### Learnings:
+- Filename-based timestamps are more reliable than file modification times
+- Background goroutines for I/O operations significantly improve performance
+- Comprehensive testing with race detector catches concurrency issues early
+- Small, focused PRs are easier to review and merge
+
+### Technical Implementation:
+- Log rotation triggered at configurable size (default 100MB)
+- Gzip compression for rotated files
+- Retention by count (MaxBackups) and age (MaxAge)
+- Thread-safe rotation with minimal lock holding
+- Background processing for compression and cleanup
+
 ## [2025-06-20] - v0.7 CircleCI Configuration
 ### Actions:
 - Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline

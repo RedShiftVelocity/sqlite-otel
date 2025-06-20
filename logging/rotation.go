@@ -66,27 +66,7 @@ func (l *Logger) rotateLocked() error {
 		return fmt.Errorf("failed to rotate log file: %w", err)
 	}
 
-	// Compress if enabled
-	if l.rotationConfig.Compress {
-		if err := compressFile(backupPath); err != nil {
-			// Log error but don't fail rotation
-			fmt.Fprintf(os.Stderr, "Failed to compress log file: %v\n", err)
-		} else {
-			// Remove uncompressed file after successful compression
-			if err := os.Remove(backupPath); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to remove uncompressed log file %s: %v\n", backupPath, err)
-			}
-			backupPath += ".gz"
-		}
-	}
-
-	// Clean up old backups
-	if err := l.cleanupOldBackupsLocked(); err != nil {
-		// Log error but don't fail rotation
-		fmt.Fprintf(os.Stderr, "Failed to cleanup old backups: %v\n", err)
-	}
-
-	// Open new log file
+	// Open new log file immediately to unblock logging
 	file, err := os.OpenFile(l.logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open new log file: %w", err)
@@ -97,12 +77,40 @@ func (l *Logger) rotateLocked() error {
 	multiWriter := io.MultiWriter(os.Stdout, file)
 	l.fileLogger.SetOutput(multiWriter)
 
+	// Perform slow operations in the background
+	go l.compressAndCleanup(backupPath)
+
 	return nil
 }
 
-// cleanupOldBackupsLocked removes old backup files based on MaxBackups and MaxAge
-// Must be called with l.mu held
-func (l *Logger) cleanupOldBackupsLocked() error {
+// compressAndCleanup runs compression and cleanup in the background
+func (l *Logger) compressAndCleanup(backupPath string) {
+	if l.rotationConfig != nil && l.rotationConfig.Compress {
+		if err := compressFile(backupPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to compress log file %s: %v\n", backupPath, err)
+		} else {
+			// Remove uncompressed file after successful compression
+			if err := os.Remove(backupPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to remove uncompressed log file %s: %v\n", backupPath, err)
+			}
+		}
+	}
+
+	// Clean up old backups
+	if err := l.cleanupOldBackups(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to cleanup old backups: %v\n", err)
+	}
+}
+
+// backupFile represents a backup log file with parsed timestamp
+type backupFile struct {
+	path string
+	ts   time.Time
+}
+
+// cleanupOldBackups removes old backup files based on MaxBackups and MaxAge
+// This version is safe to run in a goroutine
+func (l *Logger) cleanupOldBackups() error {
 	if l.logPath == "" || l.rotationConfig == nil {
 		return nil
 	}
@@ -111,84 +119,65 @@ func (l *Logger) cleanupOldBackupsLocked() error {
 	base := filepath.Base(l.logPath)
 	expectedPrefix := base + "."
 
-	// Find all backup files
-	var backups []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error walking path %s during log cleanup: %v\n", path, err)
-			return nil // Continue walking
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("could not read log directory: %w", err)
+	}
+
+	var backups []backupFile
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), expectedPrefix) {
+			continue
 		}
 
-		if info.IsDir() {
-			return nil
-		}
-
-		name := filepath.Base(path)
-		if !strings.HasPrefix(name, expectedPrefix) {
-			return nil
-		}
-
-		// Extract timestamp part
+		name := file.Name()
 		timestampPart := strings.TrimPrefix(name, expectedPrefix)
 		if strings.HasSuffix(timestampPart, ".gz") {
 			timestampPart = strings.TrimSuffix(timestampPart, ".gz")
 		}
 
-		// Validate timestamp format (YYYYMMDD-HHMMSS or YYYYMMDD-HHMMSS.UUUUUU)
-		if _, err := time.Parse("20060102-150405", timestampPart); err != nil {
-			// Try with microseconds
-			if _, err := time.Parse("20060102-150405.000000", timestampPart); err != nil {
-				// Not a valid backup file
-				return nil
+		// Try parsing with microseconds first
+		ts, err := time.Parse("20060102-150405.000000", timestampPart)
+		if err != nil {
+			// Try without microseconds for backward compatibility
+			if ts, err = time.Parse("20060102-150405", timestampPart); err != nil {
+				continue // Not a valid backup file format
 			}
 		}
-
-		backups = append(backups, path)
-		return nil
-	})
-
-	if err != nil {
-		return err
+		backups = append(backups, backupFile{path: filepath.Join(dir, name), ts: ts})
 	}
 
-	// Sort backups by modification time (newest first)
+	// Sort backups by timestamp, newest first
 	sort.Slice(backups, func(i, j int) bool {
-		iStat, errI := os.Stat(backups[i])
-		jStat, errJ := os.Stat(backups[j])
-		if errI != nil || errJ != nil {
-			// If we can't stat one of the files, maintain current order
-			if errI != nil {
-				fmt.Fprintf(os.Stderr, "Error statting backup file %s: %v\n", backups[i], errI)
-			}
-			if errJ != nil {
-				fmt.Fprintf(os.Stderr, "Error statting backup file %s: %v\n", backups[j], errJ)
-			}
-			return false
-		}
-		return iStat.ModTime().After(jStat.ModTime())
+		return backups[i].ts.After(backups[j].ts)
 	})
 
-	// Remove backups exceeding MaxBackups
-	if l.rotationConfig.MaxBackups > 0 && len(backups) > l.rotationConfig.MaxBackups {
-		for _, backup := range backups[l.rotationConfig.MaxBackups:] {
-			os.Remove(backup)
+	// Identify files to delete based on both policies
+	var toDelete []string
+	ageLimit := time.Now().AddDate(0, 0, -l.rotationConfig.MaxAge)
+
+	for i, b := range backups {
+		shouldDelete := false
+		
+		// Check against MaxBackups
+		if l.rotationConfig.MaxBackups > 0 && i >= l.rotationConfig.MaxBackups {
+			shouldDelete = true
+		}
+		
+		// Check against MaxAge
+		if l.rotationConfig.MaxAge > 0 && b.ts.Before(ageLimit) {
+			shouldDelete = true
+		}
+		
+		if shouldDelete {
+			toDelete = append(toDelete, b.path)
 		}
 	}
 
-	// Remove backups older than MaxAge
-	if l.rotationConfig.MaxAge > 0 {
-		cutoff := time.Now().AddDate(0, 0, -l.rotationConfig.MaxAge)
-		for _, backup := range backups {
-			stat, err := os.Stat(backup)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error statting backup file %s during age cleanup: %v\n", backup, err)
-				continue
-			}
-			if stat.ModTime().Before(cutoff) {
-				if err := os.Remove(backup); err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to remove old backup %s: %v\n", backup, err)
-				}
-			}
+	// Delete identified files
+	for _, path := range toDelete {
+		if err := os.Remove(path); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to remove old backup %s: %v\n", path, err)
 		}
 	}
 
