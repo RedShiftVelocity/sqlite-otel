@@ -73,7 +73,6 @@
 - Added type assertion check for TCP listener address
 - Enhanced systemd security with RestrictAddressFamilies and empty CapabilityBoundingSet
 - Added -ldflags="-s -w" to go build for optimized binary size
-
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
 - Reordered development roadmap to prioritize Service Mode implementation

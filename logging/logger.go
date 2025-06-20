@@ -136,10 +136,17 @@ func Close() error {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
 	
+	var err error
 	if globalLogger != nil {
-		return globalLogger.Close()
+		err = globalLogger.Close()
 	}
-	return nil
+	
+	// Reset to a safe default logger to prevent writing to a closed file
+	globalLogger = &Logger{
+		stdLogger: log.New(os.Stdout, "", log.LstdFlags),
+	}
+	
+	return err
 }
 
 // Info logs an info message using the global logger
