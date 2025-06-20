@@ -18,6 +18,10 @@ func TestRotationConfig(t *testing.T) {
 	if config.MaxBackups != 7 {
 		t.Errorf("Expected MaxBackups to be 7, got %d", config.MaxBackups)
 	}
+	
+	if config.MaxAge != 30 {
+		t.Errorf("Expected MaxAge to be 30, got %d", config.MaxAge)
+	}
 }
 
 func TestLogRotation(t *testing.T) {

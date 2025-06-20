@@ -14,6 +14,7 @@ import (
 type RotationConfig struct {
 	MaxSize    int64 // Maximum file size in bytes before rotation (default: 100MB)
 	MaxBackups int   // Maximum number of backup files to keep (default: 7)
+	MaxAge     int   // Maximum age in days to keep backup files (default: 30)
 }
 
 // DefaultRotationConfig returns default rotation configuration
@@ -21,6 +22,7 @@ func DefaultRotationConfig() *RotationConfig {
 	return &RotationConfig{
 		MaxSize:    100 * 1024 * 1024, // 100MB
 		MaxBackups: 7,
+		MaxAge:     30,
 	}
 }
 
@@ -84,7 +86,7 @@ type backupFile struct {
 	ts   time.Time
 }
 
-// cleanupOldBackups removes old backup files based on MaxBackups
+// cleanupOldBackups removes old backup files based on MaxBackups and MaxAge
 // This version is safe to run in a goroutine
 func (l *Logger) cleanupOldBackups() error {
 	if l.logPath == "" || l.rotationConfig == nil {
@@ -102,6 +104,7 @@ func (l *Logger) cleanupOldBackups() error {
 	}
 
 	var backups []backupFile
+	now := time.Now()
 
 	// Find and parse backup files
 	for _, entry := range entries {
@@ -133,6 +136,26 @@ func (l *Logger) cleanupOldBackups() error {
 	if l.rotationConfig.MaxBackups > 0 && len(backups) > l.rotationConfig.MaxBackups {
 		for i := l.rotationConfig.MaxBackups; i < len(backups); i++ {
 			toDelete = append(toDelete, backups[i].path)
+		}
+	}
+
+	// Apply MaxAge policy
+	if l.rotationConfig.MaxAge > 0 {
+		cutoff := now.AddDate(0, 0, -l.rotationConfig.MaxAge)
+		for _, backup := range backups {
+			if backup.ts.Before(cutoff) {
+				// Check if already marked for deletion
+				alreadyMarked := false
+				for _, path := range toDelete {
+					if path == backup.path {
+						alreadyMarked = true
+						break
+					}
+				}
+				if !alreadyMarked {
+					toDelete = append(toDelete, backup.path)
+				}
+			}
 		}
 	}
 
