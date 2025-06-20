@@ -1,0 +1,136 @@
+version: 2.1
+
+commands:
+  setup_go_modules:
+    steps:
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - run:
+          name: Download dependencies
+          command: go mod download
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+
+executors:
+  go-executor:
+    docker:
+      - image: cimg/go:1.21.6
+    working_directory: ~/repo
+
+jobs:
+  test:
+    executor: go-executor
+    steps:
+      - checkout
+      - setup_go_modules
+      - run:
+          name: Run go vet
+          command: go vet ./...
+      - run:
+          name: Install test reporter
+          command: go install github.com/jstemmer/go-junit-report/v2@latest
+      - run:
+          name: Run tests
+          command: |
+            set -e
+            mkdir -p /tmp/test-results
+            # Run tests and capture both stdout and exit code
+            go test -race -coverprofile=coverage.out -v ./... 2>&1 | tee /tmp/test-results/go-test.out
+            # Capture the exit code from go test (not tee)
+            test_exit_code=${PIPESTATUS[0]}
+            # Convert to JUnit XML format for CircleCI
+            cat /tmp/test-results/go-test.out | go-junit-report -set-exit-code > /tmp/test-results/junit.xml
+            # Exit with the original test exit code
+            exit $test_exit_code
+      - run:
+          name: Generate coverage report
+          command: |
+            set -e
+            go tool cover -html=coverage.out -o coverage.html
+            echo "Coverage report generated"
+      - store_test_results:
+          path: /tmp/test-results
+      - store_artifacts:
+          path: coverage.html
+          destination: coverage
+      - store_artifacts:
+          path: coverage.out
+          destination: coverage.out
+
+  build:
+    executor: go-executor
+    steps:
+      - checkout
+      - setup_go_modules
+      - run:
+          name: Build current platform binary
+          command: |
+            set -e
+            make build
+            # Verify binary was created
+            if [ ! -f "sqlite-otel-collector" ]; then
+              echo "Error: Binary sqlite-otel-collector not found after build"
+              exit 1
+            fi
+      - run:
+          name: Build for all platforms
+          command: |
+            set -e
+            make build-all
+      - run:
+          name: Collect binaries
+          command: |
+            set -e
+            mkdir -p binaries
+            cp sqlite-otel-collector* binaries/
+      - store_artifacts:
+          path: binaries/
+          destination: binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - binaries/
+
+  release:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Create release archives
+          command: ./scripts/create-release-archives.sh
+      - store_artifacts:
+          path: releases/
+          destination: releases
+
+workflows:
+  version: 2.1
+  test-and-build:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - build:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - release:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/

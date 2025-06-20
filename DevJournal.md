@@ -1,5 +1,51 @@
 # Development Journal
 
+## [2025-06-20] - v0.7 CircleCI Configuration
+### Actions:
+- Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline
+- Added test job with go vet, race detection, and coverage reports
+- Added build job for multi-platform builds
+- Added release job for version tags
+- Implemented Go module caching
+- Added proper error handling with set -e
+
+### Decisions:
+- Use Go 1.21 Docker image (cimg/go:1.21)
+- Run static analysis (go vet) before tests
+- Store test results and coverage artifacts
+- Build all platforms defined in Makefile
+- Trigger release workflow only on version tags (v*)
+- Use binaries directory for cleaner artifact management
+
+### Challenges:
+- None - leveraged existing CircleCI branch setup
+
+### Learnings:
+- CircleCI's caching system speeds up Go module downloads
+- Workspace persistence enables artifact sharing between jobs
+- set -e ensures fail-fast behavior in shell scripts
+
+### CI/CD Features:
+- Automatic testing on all branches with coverage reports
+- Static analysis with go vet
+- Multi-platform builds via Makefile targets
+- Automated release archive creation for tags
+- Proper job dependencies and filtering
+
+### Code Review Improvements:
+- Created reusable command for Go module setup to reduce duplication
+- Pinned Go Docker image to specific version (1.21.6) for reproducibility
+- Added explicit binary existence check after build
+- Added CIRCLE_TAG validation in release job
+- Fixed workflow version to match config version (2.1)
+
+### Additional Improvements (from Gemini review):
+- Removed redundant ls commands from build logs
+- Extracted release archive creation logic to scripts/create-release-archives.sh
+- Fixed test result reporting to preserve go test exit codes (using PIPESTATUS)
+- Added go-junit-report for proper JUnit XML test results in CircleCI
+- Confirmed test-before-build order is correct for Go projects
+
 ## [2025-06-20] - PR #48: v0.6 SQLite-Only Storage
 ### Actions:
 - Removed stdout/file output functionality from handlers
@@ -108,6 +154,7 @@
 - Added type assertion check for TCP listener address
 - Enhanced systemd security with RestrictAddressFamilies and empty CapabilityBoundingSet
 - Added -ldflags="-s -w" to go build for optimized binary size
+
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
 - Reordered development roadmap to prioritize Service Mode implementation
