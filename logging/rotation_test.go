@@ -46,21 +46,26 @@ func TestBasicLogRotation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should have at least 2 files (current log + 1 backup)
-	if len(entries) < 2 {
-		t.Errorf("Expected at least 2 files after rotation, got %d", len(entries))
-	}
-
-	// Verify backup file exists
-	foundBackup := false
+	// Count log files
+	var currentLog, backupFiles int
 	for _, entry := range entries {
-		if entry.Name() != "test.log" && !entry.IsDir() {
-			foundBackup = true
-			break
+		if entry.IsDir() {
+			continue
+		}
+		if entry.Name() == "test.log" {
+			currentLog++
+		} else if len(entry.Name()) > 8 && entry.Name()[:8] == "test.log" {
+			backupFiles++
 		}
 	}
 
-	if !foundBackup {
-		t.Error("No backup file found after rotation")
+	// Should have exactly 1 current log file
+	if currentLog != 1 {
+		t.Errorf("Expected exactly 1 current log file, got %d", currentLog)
+	}
+
+	// Should have at least 1 backup file after rotation
+	if backupFiles < 1 {
+		t.Errorf("Expected at least 1 backup file after rotation, got %d", backupFiles)
 	}
 }

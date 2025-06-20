@@ -17,6 +17,7 @@ var (
 	}
 	loggerMu sync.RWMutex
 	initOnce sync.Once
+	initErr  error // Store initialization error
 )
 
 // Logger handles application logging
@@ -36,17 +37,16 @@ func Init(logFilePath string) error {
 
 // InitWithRotation initializes the logger with rotation configuration
 func InitWithRotation(logFilePath string, config *RotationConfig) error {
-	var err error
 	initOnce.Do(func() {
 		var newL *Logger
-		newL, err = newLoggerWithRotation(logFilePath, config)
-		if err == nil {
+		newL, initErr = newLoggerWithRotation(logFilePath, config)
+		if initErr == nil {
 			loggerMu.Lock()
 			globalLogger = newL
 			loggerMu.Unlock()
 		}
 	})
-	return err
+	return initErr
 }
 
 // newLogger creates a new logger instance
