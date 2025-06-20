@@ -1,0 +1,45 @@
+[Unit]
+Description=SQLite OpenTelemetry Collector
+Documentation=https://github.com/RedShiftVelocity/sqlite-otel
+After=network.target
+
+[Service]
+Type=simple
+User=sqlite-otel
+Group=sqlite-otel
+ExecStart=/usr/bin/sqlite-otel-collector --db-path /var/lib/sqlite-otel-collector/otel-collector.db
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sqlite-otel-collector
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+MemoryDenyWriteExecute=true
+RestrictNamespaces=true
+PrivateDevices=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sqlite-otel-collector
+
+[Install]
+WantedBy=multi-user.target
