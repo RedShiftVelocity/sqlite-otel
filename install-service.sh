@@ -11,9 +11,9 @@ fi
 
 echo "Installing sqlite-otel-collector service..."
 
-# Build the binary
+# Build the binary with optimizations
 echo "Building sqlite-otel binary..."
-go build -o sqlite-otel .
+go build -ldflags="-s -w" -o sqlite-otel .
 
 # Create system user for the service
 if ! id -u sqlite-otel >/dev/null 2>&1; then

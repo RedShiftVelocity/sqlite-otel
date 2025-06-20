@@ -24,6 +24,18 @@
 - systemd sets INVOCATION_ID for all service executions
 - ProtectSystem=strict requires explicit ReadWritePaths for writable directories
 - System users should use --no-create-home and /bin/false shell for security
+- Defer statements don't execute on log.Fatalf() - need proper error handling pattern
+- IdleTimeout in http.Server helps protect against slowloris attacks
+- Build flags -ldflags="-s -w" strip debugging info for smaller binaries
+- RestrictAddressFamilies and CapabilityBoundingSet provide additional systemd hardening
+
+### Code Review Improvements (from Gemini and O3):
+- **CRITICAL**: Refactored main() to use run() pattern ensuring database cleanup on all exit paths
+- Added proper error handling with fmt.Errorf instead of log.Fatalf
+- Added IdleTimeout: 120s to HTTP server configuration
+- Added type assertion check for TCP listener address
+- Enhanced systemd security with RestrictAddressFamilies and empty CapabilityBoundingSet
+- Added -ldflags="-s -w" to go build for optimized binary size
 
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:

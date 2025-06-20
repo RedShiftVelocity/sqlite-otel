@@ -26,34 +26,43 @@ func main() {
 	dbPath := flag.String("db-path", defaultDBPath, "Path to SQLite database file (default: "+defaultDBPath+")")
 	flag.Parse()
 
+	if err := run(*port, *dbPath); err != nil {
+		log.Fatalf("Application error: %v", err)
+	}
+}
+
+func run(port int, dbPath string) error {
 	// Ensure directory exists
-	dbDir := filepath.Dir(*dbPath)
+	dbDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		log.Fatalf("Failed to create database directory: %v", err)
+		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
 	// Initialize database
-	if err := database.InitDB(*dbPath); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+	if err := database.InitDB(dbPath); err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 	defer database.CloseDB()
 
-	fmt.Printf("SQLite database initialized at: %s\n", *dbPath)
+	fmt.Printf("SQLite database initialized at: %s\n", dbPath)
 
 	// Create a listener on specified port
-	address := fmt.Sprintf(":%d", *port)
+	address := fmt.Sprintf(":%d", port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		if *port == 4318 {
-			log.Fatalf("Failed to create listener on port %d: %v\nPort 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)", 
-				*port, err, os.Args[0], os.Args[0])
-		} else {
-			log.Fatalf("Failed to create listener on port %d: %v", *port, err)
+		if port == 4318 {
+			return fmt.Errorf("failed to create listener on port %d: %w\nPort 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)", 
+				port, err, os.Args[0], os.Args[0])
 		}
+		return fmt.Errorf("failed to create listener on port %d: %w", port, err)
 	}
 	
 	// Get the actual port that was assigned
-	actualPort := listener.Addr().(*net.TCPAddr).Port
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("listener address is not TCP")
+	}
+	actualPort := tcpAddr.Port
 	fmt.Printf("OTLP/HTTP receiver listening on port %d\n", actualPort)
 	
 	// Create HTTP mux and register OTLP endpoints
@@ -69,23 +78,30 @@ func main() {
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 	
-	// Channel to listen for interrupt signals
+	// Channel to listen for interrupt signals and server errors
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	
+	errChan := make(chan error, 1)
 	
 	// Start server in a goroutine
 	go func() {
 		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			errChan <- err
 		}
+		close(errChan)
 	}()
 	
-	// Wait for interrupt signal
-	<-sigChan
-	fmt.Println("\nShutting down server...")
+	// Wait for interrupt signal or server error
+	select {
+	case err := <-errChan:
+		return fmt.Errorf("server failed: %w", err)
+	case <-sigChan:
+		fmt.Println("\nShutting down server...")
+	}
 	
 	// Create a deadline for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -93,9 +109,11 @@ func main() {
 	
 	// Shutdown the server gracefully
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		return fmt.Errorf("server shutdown error: %w", err)
 	}
+	
 	fmt.Println("Server stopped")
+	return nil
 }
 
 // getDefaultDBPath returns the default database path following XDG Base Directory specification

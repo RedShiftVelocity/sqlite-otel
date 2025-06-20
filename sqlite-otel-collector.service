@@ -17,6 +17,8 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/sqlite-otel-collector
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
 
 # Logging to stdout/stderr for journald
 StandardOutput=journal
