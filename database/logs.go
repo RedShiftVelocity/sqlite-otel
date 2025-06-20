@@ -47,12 +47,19 @@ func InsertLogsData(data map[string]interface{}) error {
 			}
 
 			// Get or create scope
-			var scopeID int64
-			if scope, ok := scopeLog["scope"].(map[string]interface{}); ok {
-				scopeID, err = GetOrCreateScope(tx, scope)
-				if err != nil {
-					return fmt.Errorf("failed to process scope: %w", err)
+			scope, ok := scopeLog["scope"].(map[string]interface{})
+			if !ok {
+				// Use default empty scope when not provided (per OTLP spec)
+				scope = map[string]interface{}{
+					"name":       "",
+					"version":    "",
+					"attributes": []interface{}{},
+					"schemaUrl":  "",
 				}
+			}
+			scopeID, err := GetOrCreateScope(tx, scope)
+			if err != nil {
+				return fmt.Errorf("failed to process scope: %w", err)
 			}
 
 			// Process log records
