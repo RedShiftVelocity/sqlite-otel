@@ -35,8 +35,23 @@
 ### File Locations:
 - Binary: `/usr/bin/sqlite-otel-collector`
 - Database: `/var/lib/sqlite-otel-collector/otel-collector.db`
-- Logs: `/var/log/sqlite-otel-collector.log`
+- Logs: Via journald (systemd journal)
 - Service: `/lib/systemd/system/sqlite-otel-collector.service`
+
+### Code Review Feedback Addressed:
+**Round 1 Issues Fixed:**
+- Added wget to Docker runtime for healthcheck support
+- Added error handling for user/group creation in RPM spec
+- Enhanced systemd security hardening with 10+ additional restrictions
+- Standardized binary installation path to /usr/bin across all methods
+- Added /health endpoint for container healthchecks
+
+**Round 2 Issues Fixed:**
+- Removed /var/log from ReadWritePaths (logs via journald)
+- Made systemd service use explicit --db-path flag
+- Removed unused DB_PATH environment variable
+- Fixed changelog year (2025→2024)
+- Enhanced health check to verify database connectivity
 
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
