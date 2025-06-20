@@ -56,8 +56,13 @@ func InsertMetricsData(data map[string]interface{}) error {
 			// Get or create scope
 			scope, ok := scopeMetric["scope"].(map[string]interface{})
 			if !ok {
-				// Skip scopeMetric without scope
-				continue
+				// Use default empty scope when not provided (per OTLP spec)
+				scope = map[string]interface{}{
+					"name":       "",
+					"version":    "",
+					"attributes": []interface{}{},
+					"schemaUrl":  "",
+				}
 			}
 			scopeID, err := GetOrCreateScope(tx, scope)
 			if err != nil {

@@ -24,23 +24,20 @@ func ProcessTelemetryRequest(w http.ResponseWriter, r *http.Request, telemetryTy
 		return
 	}
 
+	// Enforce request body size limit to prevent DoS attacks
+	const maxBodySize = 10 * 1024 * 1024 // 10 MB limit
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
+
 	// Read the request body
 	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
 	if err != nil {
 		log.Printf("Error reading %s request body: %v", telemetryType, err)
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
-	// Write telemetry data to file (maintaining dual storage)
-	if err := WriteTelemetryData(telemetryType, string(body)); err != nil {
-		log.Printf("Error writing %s data to file: %v", telemetryType, err)
-		http.Error(w, fmt.Sprintf("Failed to write %s data", telemetryType), http.StatusInternalServerError)
-		return
-	}
-
-	// Parse JSON body
+	// Parse JSON body first to validate before storage
 	var telemetryData map[string]interface{}
 	if err := json.Unmarshal(body, &telemetryData); err != nil {
 		log.Printf("Error parsing %s JSON: %v", telemetryType, err)
@@ -48,12 +45,19 @@ func ProcessTelemetryRequest(w http.ResponseWriter, r *http.Request, telemetryTy
 		return
 	}
 
-	// Store telemetry data in database
+	// Store telemetry data in database (primary storage)
 	if err := insertFunc(telemetryData); err != nil {
 		log.Printf("Error storing %s in database: %v", telemetryType, err)
 		// Return 500 Internal Server Error as per OTLP/HTTP spec
 		http.Error(w, fmt.Sprintf("Failed to process %s data", telemetryType), http.StatusInternalServerError)
 		return
+	}
+
+	// Write telemetry data to stdout (secondary storage)
+	// Don't fail the request if stdout write fails since data is already persisted
+	if err := WriteTelemetryData(telemetryType, body); err != nil {
+		log.Printf("Error writing %s data to stdout: %v", telemetryType, err)
+		// Continue processing - data is safely stored in database
 	}
 
 	// Log request details
