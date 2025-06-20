@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,7 @@ type RotationConfig struct {
 	MaxSize    int64 // Maximum file size in bytes before rotation (default: 100MB)
 	MaxBackups int   // Maximum number of backup files to keep (default: 7)
 	MaxAge     int   // Maximum age in days to keep backup files (default: 30)
+	Compress   bool  // Whether to compress rotated files (default: true)
 }
 
 // DefaultRotationConfig returns default rotation configuration
@@ -23,6 +25,7 @@ func DefaultRotationConfig() *RotationConfig {
 		MaxSize:    100 * 1024 * 1024, // 100MB
 		MaxBackups: 7,
 		MaxAge:     30,
+		Compress:   true,
 	}
 }
 
@@ -74,10 +77,29 @@ func (l *Logger) rotateLocked() error {
 	multiWriter := io.MultiWriter(os.Stdout, file)
 	l.fileLogger.SetOutput(multiWriter)
 
-	// Clean up old backups in the background
-	go l.cleanupOldBackups()
+	// Perform slow operations in the background
+	go l.compressAndCleanup(backupPath)
 
 	return nil
+}
+
+// compressAndCleanup runs compression and cleanup in the background
+func (l *Logger) compressAndCleanup(backupPath string) {
+	if l.rotationConfig != nil && l.rotationConfig.Compress {
+		if err := compressFile(backupPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to compress log file %s: %v\n", backupPath, err)
+		} else {
+			// Remove uncompressed file after successful compression
+			if err := os.Remove(backupPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to remove uncompressed log file %s: %v\n", backupPath, err)
+			}
+		}
+	}
+
+	// Clean up old backups
+	if err := l.cleanupOldBackups(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to cleanup old backups: %v\n", err)
+	}
 }
 
 // backupFile represents a backup log file with parsed timestamp
@@ -115,6 +137,9 @@ func (l *Logger) cleanupOldBackups() error {
 
 		// Parse timestamp from filename
 		timestampPart := strings.TrimPrefix(name, expectedPrefix)
+		if strings.HasSuffix(timestampPart, ".gz") {
+			timestampPart = strings.TrimSuffix(timestampPart, ".gz")
+		}
 
 		// Try parsing with microseconds first
 		ts, err := time.Parse("20060102-150405.000000", timestampPart)
@@ -167,6 +192,33 @@ func (l *Logger) cleanupOldBackups() error {
 		if err := os.Remove(path); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to remove old backup %s: %v\n", path, err)
 		}
+	}
+
+	return nil
+}
+
+// compressFile compresses a file using gzip
+func compressFile(path string) error {
+	source, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destPath := path + ".gz"
+	dest, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	gz := gzip.NewWriter(dest)
+	defer gz.Close()
+
+	// Copy file contents
+	if _, err := io.Copy(gz, source); err != nil {
+		os.Remove(destPath) // Clean up on error
+		return err
 	}
 
 	return nil
