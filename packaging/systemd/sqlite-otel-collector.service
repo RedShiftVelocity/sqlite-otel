@@ -20,6 +20,17 @@ ReadWritePaths=/var/lib/sqlite-otel-collector /var/log
 RestrictAddressFamilies=AF_INET AF_INET6
 CapabilityBoundingSet=
 AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+MemoryDenyWriteExecute=true
+RestrictNamespaces=true
+PrivateDevices=true
 
 # Resource limits
 LimitNOFILE=65536

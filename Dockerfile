@@ -23,7 +23,7 @@ RUN make build
 FROM alpine:3.18
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata wget
 
 # Create non-root user
 RUN addgroup -g 1000 -S sqlite-otel && \
@@ -34,7 +34,7 @@ RUN mkdir -p /var/lib/sqlite-otel-collector && \
     chown -R sqlite-otel:sqlite-otel /var/lib/sqlite-otel-collector
 
 # Copy binary from builder
-COPY --from=builder /build/sqlite-otel-collector /usr/local/bin/sqlite-otel-collector
+COPY --from=builder /build/sqlite-otel-collector /usr/bin/sqlite-otel-collector
 
 # Switch to non-root user
 USER sqlite-otel
@@ -50,5 +50,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:4318/health || exit 1
 
 # Run the collector
-ENTRYPOINT ["/usr/local/bin/sqlite-otel-collector"]
+ENTRYPOINT ["/usr/bin/sqlite-otel-collector"]
 CMD ["--db-path", "/var/lib/sqlite-otel-collector/otel-collector.db"]

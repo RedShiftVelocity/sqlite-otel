@@ -64,6 +64,12 @@ func main() {
 	mux.HandleFunc("/v1/metrics", handlers.HandleMetrics)
 	mux.HandleFunc("/v1/logs", handlers.HandleLogs)
 	
+	// Register health endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	
 	// Create HTTP server
 	server := &http.Server{
 		Handler:      mux,

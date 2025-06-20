@@ -39,11 +39,17 @@ if [ -f packaging/config/%{name}.conf ]; then
 fi
 
 %pre
-# Create user and group
-getent group sqlite-otel >/dev/null || groupadd -r sqlite-otel
+# Create user and group with error handling
+getent group sqlite-otel >/dev/null || groupadd -r sqlite-otel || {
+    echo "Failed to create group sqlite-otel" >&2
+    exit 1
+}
 getent passwd sqlite-otel >/dev/null || \
     useradd -r -g sqlite-otel -d %{_localstatedir}/lib/%{name} -s /sbin/nologin \
-    -c "SQLite OTEL Collector" sqlite-otel
+    -c "SQLite OTEL Collector" sqlite-otel || {
+    echo "Failed to create user sqlite-otel" >&2
+    exit 1
+}
 exit 0
 
 %post
