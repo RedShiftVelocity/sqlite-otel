@@ -20,10 +20,13 @@ The CI/CD pipeline consists of three main jobs:
 ## Features
 
 - Go module caching for faster builds
+- Static analysis with `go vet`
 - Test result storage and coverage reports
-- Multi-platform Linux builds (amd64, arm64, arm)
+- Multi-platform builds (Linux, macOS, Windows)
 - Automatic release archive creation for tags
 - Artifact storage for all builds
+- Error handling with `set -e` in shell scripts
+- Centralized binary name configuration
 
 ## Usage
 
@@ -34,6 +37,8 @@ The CI/CD pipeline consists of three main jobs:
 ## Configuration Details
 
 - **Go Version**: 1.21
-- **Test Options**: Race detection enabled, coverage reports
-- **Build Targets**: Current platform + all Linux architectures
-- **Release Format**: tar.gz archives with version in filename
+- **Binary Name**: Configured via BINARY_NAME environment variable
+- **Test Options**: Race detection enabled, coverage reports, static analysis
+- **Build Targets**: Current platform + all supported platforms (Linux, macOS, Windows)
+- **Release Format**: tar.gz archives with format: `{binary}-{version}-{platform}.tar.gz`
+- **Error Handling**: Shell scripts use `set -e` for fail-fast behavior

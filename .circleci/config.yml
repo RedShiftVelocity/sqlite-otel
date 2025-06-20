@@ -5,6 +5,8 @@ executors:
     docker:
       - image: cimg/go:1.21
     working_directory: ~/repo
+    environment:
+      BINARY_NAME: sqlite-otel-collector
 
 jobs:
   test:
@@ -23,13 +25,18 @@ jobs:
           paths:
             - ~/go/pkg/mod
       - run:
+          name: Run go vet
+          command: go vet ./...
+      - run:
           name: Run tests
           command: |
+            set -e
             mkdir -p /tmp/test-results
             go test -race -coverprofile=coverage.out -v ./... | tee /tmp/test-results/go-test.out
       - run:
           name: Generate coverage report
           command: |
+            set -e
             go tool cover -html=coverage.out -o coverage.html
             echo "Coverage report generated"
       - store_test_results:
@@ -55,21 +62,29 @@ jobs:
       - run:
           name: Build for current platform
           command: |
+            set -e
             make build
             # Verify binary was created
-            ls -la sqlite-otel-collector
+            ls -la ${BINARY_NAME}
       - run:
           name: Build for all platforms
           command: |
+            set -e
             make build-all
-            ls -la sqlite-otel-collector-*
+            ls -la ${BINARY_NAME}-*
+      - run:
+          name: Collect binaries
+          command: |
+            set -e
+            mkdir -p binaries
+            cp ${BINARY_NAME}* binaries/
       - store_artifacts:
-          path: sqlite-otel-collector*
+          path: binaries/
           destination: binaries
       - persist_to_workspace:
           root: .
           paths:
-            - sqlite-otel-collector*
+            - binaries/
 
   release:
     executor: go-executor
@@ -80,11 +95,17 @@ jobs:
       - run:
           name: Create release archives
           command: |
+            set -e
             mkdir -p releases
-            for file in sqlite-otel-collector*; do
+            cd binaries
+            for file in ${BINARY_NAME}*; do
               if [ -f "$file" ]; then
-                tar czf releases/${file}-${CIRCLE_TAG}.tar.gz $file
-                echo "Created releases/${file}-${CIRCLE_TAG}.tar.gz"
+                # Extract platform suffix from filename
+                platform_suffix="${file#${BINARY_NAME}}"
+                # Create archive with version before platform
+                archive_name="${BINARY_NAME}-${CIRCLE_TAG}${platform_suffix}.tar.gz"
+                tar czf "../releases/${archive_name}" "$file"
+                echo "Created releases/${archive_name}"
               fi
             done
       - store_artifacts:
