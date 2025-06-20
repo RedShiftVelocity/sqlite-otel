@@ -4,18 +4,23 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
 // RotationConfig defines log rotation parameters
 type RotationConfig struct {
-	MaxSize int64 // Maximum file size in bytes before rotation (default: 100MB)
+	MaxSize    int64 // Maximum file size in bytes before rotation (default: 100MB)
+	MaxBackups int   // Maximum number of backup files to keep (default: 7)
 }
 
 // DefaultRotationConfig returns default rotation configuration
 func DefaultRotationConfig() *RotationConfig {
 	return &RotationConfig{
-		MaxSize: 100 * 1024 * 1024, // 100MB
+		MaxSize:    100 * 1024 * 1024, // 100MB
+		MaxBackups: 7,
 	}
 }
 
@@ -66,6 +71,80 @@ func (l *Logger) rotateLocked() error {
 	// Update multi-writer
 	multiWriter := io.MultiWriter(os.Stdout, file)
 	l.fileLogger.SetOutput(multiWriter)
+
+	// Clean up old backups in the background
+	go l.cleanupOldBackups()
+
+	return nil
+}
+
+// backupFile represents a backup log file with parsed timestamp
+type backupFile struct {
+	path string
+	ts   time.Time
+}
+
+// cleanupOldBackups removes old backup files based on MaxBackups
+// This version is safe to run in a goroutine
+func (l *Logger) cleanupOldBackups() error {
+	if l.logPath == "" || l.rotationConfig == nil {
+		return nil
+	}
+
+	dir := filepath.Dir(l.logPath)
+	base := filepath.Base(l.logPath)
+	expectedPrefix := base + "."
+
+	// Read directory entries
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("failed to read log directory: %w", err)
+	}
+
+	var backups []backupFile
+
+	// Find and parse backup files
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, expectedPrefix) {
+			continue
+		}
+
+		// Parse timestamp from filename
+		timestampPart := strings.TrimPrefix(name, expectedPrefix)
+
+		// Try parsing with microseconds first
+		ts, err := time.Parse("20060102-150405.000000", timestampPart)
+		if err != nil {
+			// Try without microseconds for backward compatibility
+			if ts, err = time.Parse("20060102-150405", timestampPart); err != nil {
+				continue // Not a valid backup file format
+			}
+		}
+		backups = append(backups, backupFile{path: filepath.Join(dir, name), ts: ts})
+	}
+
+	// Sort backups by timestamp, newest first
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].ts.After(backups[j].ts)
+	})
+
+	// Determine which files to delete
+	var toDelete []string
+
+	// Apply MaxBackups policy
+	if l.rotationConfig.MaxBackups > 0 && len(backups) > l.rotationConfig.MaxBackups {
+		for i := l.rotationConfig.MaxBackups; i < len(backups); i++ {
+			toDelete = append(toDelete, backups[i].path)
+		}
+	}
+
+	// Delete identified files
+	for _, path := range toDelete {
+		if err := os.Remove(path); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to remove old backup %s: %v\n", path, err)
+		}
+	}
 
 	return nil
 }
