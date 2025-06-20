@@ -29,6 +29,12 @@
 - Suggested future improvements: queuing mechanism for writes, structured logging
 - These improvements are beyond v0.6 scope but noted for future work
 
+### Code Review Fixes Applied:
+- **HIGH**: Fixed memory usage by switching from io.ReadAll to streaming JSON decoder
+- **LOW**: Moved defer r.Body.Close() immediately after MaxBytesReader for safety
+- Updated logging to use Content-Length header instead of len(body)
+- Created GitHub issues for remaining improvements (async writes, configurable limits, log consolidation)
+
 ## [2025-06-20] - PR #47: v0.5 Execution Logging Implementation
 ### Actions:
 - Added logging package with structured logging capabilities

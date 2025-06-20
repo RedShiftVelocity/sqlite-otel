@@ -28,19 +28,17 @@ func ProcessTelemetryRequest(w http.ResponseWriter, r *http.Request, telemetryTy
 	// Enforce request body size limit to prevent DoS attacks
 	const maxBodySize = 10 * 1024 * 1024 // 10 MB limit
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
-
-	// Read the request body
-	body, err := io.ReadAll(r.Body)
 	defer r.Body.Close()
-	if err != nil {
-		logging.Error("Error reading %s request body: %v", telemetryType, err)
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
 
-	// Parse JSON body first to validate before storage
+	// Parse JSON body directly from stream to avoid memory allocation
 	var telemetryData map[string]interface{}
-	if err := json.Unmarshal(body, &telemetryData); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&telemetryData); err != nil {
+		if err == io.EOF {
+			logging.Error("Empty request body for %s", telemetryType)
+			http.Error(w, "Request body cannot be empty", http.StatusBadRequest)
+			return
+		}
 		logging.Error("Error parsing %s JSON: %v", telemetryType, err)
 		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
 		return
@@ -55,7 +53,13 @@ func ProcessTelemetryRequest(w http.ResponseWriter, r *http.Request, telemetryTy
 	}
 
 	// Log request details (execution logging only, no telemetry data)
-	logging.Debug("Received %s telemetry data, size: %d bytes", telemetryType, len(body))
+	// Note: Content-Length may be -1 if not specified by client
+	contentLength := r.ContentLength
+	if contentLength > 0 {
+		logging.Debug("Received %s telemetry data, size: %d bytes", telemetryType, contentLength)
+	} else {
+		logging.Debug("Received %s telemetry data", telemetryType)
+	}
 	logging.Info("Stored %s data in SQLite - Content-Type: %s", 
 		telemetryType, r.Header.Get("Content-Type"))
 
