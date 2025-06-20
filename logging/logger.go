@@ -21,18 +21,25 @@ var (
 
 // Logger handles application logging
 type Logger struct {
-	file       *os.File
-	fileLogger *log.Logger
-	stdLogger  *log.Logger
-	mu         sync.Mutex
+	file           *os.File
+	fileLogger     *log.Logger
+	stdLogger      *log.Logger
+	mu             sync.Mutex
+	logPath        string
+	rotationConfig *RotationConfig
 }
 
 // Init initializes the logger with the given log file path
 func Init(logFilePath string) error {
+	return InitWithRotation(logFilePath, nil)
+}
+
+// InitWithRotation initializes the logger with rotation configuration
+func InitWithRotation(logFilePath string, config *RotationConfig) error {
 	var err error
 	initOnce.Do(func() {
 		var newL *Logger
-		newL, err = newLogger(logFilePath)
+		newL, err = newLoggerWithRotation(logFilePath, config)
 		if err == nil {
 			loggerMu.Lock()
 			globalLogger = newL
@@ -44,8 +51,15 @@ func Init(logFilePath string) error {
 
 // newLogger creates a new logger instance
 func newLogger(logFilePath string) (*Logger, error) {
+	return newLoggerWithRotation(logFilePath, nil)
+}
+
+// newLoggerWithRotation creates a new logger instance with rotation support
+func newLoggerWithRotation(logFilePath string, config *RotationConfig) (*Logger, error) {
 	l := &Logger{
-		stdLogger: log.New(os.Stdout, "", log.LstdFlags),
+		stdLogger:      log.New(os.Stdout, "", log.LstdFlags),
+		logPath:        logFilePath,
+		rotationConfig: config,
 	}
 
 	if logFilePath != "" {
@@ -62,9 +76,7 @@ func newLogger(logFilePath string) (*Logger, error) {
 		}
 
 		l.file = file
-		// Create multi-writer to write to both stdout and file
-		multiWriter := io.MultiWriter(os.Stdout, file)
-		l.fileLogger = log.New(multiWriter, "", log.LstdFlags)
+		l.updateFileLogger()
 	}
 
 	return l, nil
@@ -77,10 +89,26 @@ func GetLogger() *Logger {
 	return globalLogger
 }
 
+// updateFileLogger updates the file logger after rotation
+func (l *Logger) updateFileLogger() {
+	if l.file != nil {
+		multiWriter := io.MultiWriter(os.Stdout, l.file)
+		l.fileLogger = log.New(multiWriter, "", log.LstdFlags)
+	}
+}
+
 // log is the internal logging method
 func (l *Logger) log(level, format string, v ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	
+	// Check and perform rotation if needed
+	if l.rotationConfig != nil && l.needsRotationLocked() {
+		if err := l.rotateLocked(); err != nil {
+			// Log error to stderr as fallback
+			fmt.Fprintf(os.Stderr, "Log rotation failed: %v\n", err)
+		}
+	}
 	
 	msg := fmt.Sprintf(level+" "+format, v...)
 	if l.fileLogger != nil {
