@@ -9,6 +9,11 @@ import (
 
 var db *sql.DB
 
+// DB returns the database instance for health checks
+func DB() *sql.DB {
+	return db
+}
+
 // InitDB initializes the SQLite database connection and creates tables
 func InitDB(dbPath string) error {
 	var err error

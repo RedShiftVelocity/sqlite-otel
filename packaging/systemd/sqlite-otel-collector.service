@@ -7,7 +7,7 @@ After=network.target
 Type=simple
 User=sqlite-otel
 Group=sqlite-otel
-ExecStart=/usr/bin/sqlite-otel-collector
+ExecStart=/usr/bin/sqlite-otel-collector --db-path /var/lib/sqlite-otel-collector/otel-collector.db
 Restart=always
 RestartSec=5
 
@@ -16,7 +16,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/sqlite-otel-collector /var/log
+ReadWritePaths=/var/lib/sqlite-otel-collector
 RestrictAddressFamilies=AF_INET AF_INET6
 CapabilityBoundingSet=
 AmbientCapabilities=

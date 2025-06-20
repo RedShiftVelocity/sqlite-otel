@@ -71,7 +71,7 @@ exit 0
 %endif
 
 %changelog
-* Thu Jun 20 2025 Claude Code <noreply@anthropic.com> - 0.7.0-1
+* Thu Jun 20 2024 Claude Code <noreply@anthropic.com> - 0.7.0-1
 - Initial RPM package
 - Cross-platform build support
 - Execution logging with rotation
