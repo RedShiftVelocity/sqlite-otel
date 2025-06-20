@@ -1,5 +1,43 @@
 # Development Journal
 
+## [2025-06-20] - PR #53: v0.7 Part 3 - Packaging Scripts (RPM/DEB)
+### Actions:
+- Created RPM spec file for building RPM packages
+- Created Debian control files for building DEB packages
+- Added systemd service file with security hardening
+- Created automated build scripts for both package types
+- Added Docker support with multi-stage build
+- Added docker-compose configuration
+
+### Decisions:
+- Use native packaging formats (RPM/DEB) for Linux distributions
+- Create dedicated sqlite-otel user/group for service isolation
+- Apply systemd security hardening (NoNewPrivileges, ProtectSystem, etc.)
+- Follow Filesystem Hierarchy Standard (FHS) for file locations
+- Use multi-stage Docker build to minimize image size
+
+### Challenges:
+- Ensuring compatibility across different RPM/DEB based distributions
+- Balancing security restrictions with functionality requirements
+
+### Learnings:
+- RPM spec files handle pre/post installation scripts differently than DEB
+- systemd security features provide excellent service isolation
+- Multi-stage Docker builds significantly reduce final image size
+
+### Package Features:
+- Automatic user/group creation
+- Systemd service integration with auto-start
+- Security hardening with restricted permissions
+- Proper file locations following FHS
+- Support for RPM (RHEL, CentOS, Fedora) and DEB (Debian, Ubuntu)
+
+### File Locations:
+- Binary: `/usr/bin/sqlite-otel-collector`
+- Database: `/var/lib/sqlite-otel-collector/otel-collector.db`
+- Logs: `/var/log/sqlite-otel-collector.log`
+- Service: `/lib/systemd/system/sqlite-otel-collector.service`
+
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
 - Reordered development roadmap to prioritize Service Mode implementation

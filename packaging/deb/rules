@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DH_OPTIONS = -v
+
+%:
+	dh $@ --with systemd
+
+override_dh_auto_build:
+	make build
+
+override_dh_auto_install:
+	# Install binary
+	install -D -m 0755 sqlite-otel-collector debian/sqlite-otel-collector/usr/bin/sqlite-otel-collector
+	
+	# Install systemd service
+	install -D -m 0644 packaging/systemd/sqlite-otel-collector.service \
+		debian/sqlite-otel-collector/lib/systemd/system/sqlite-otel-collector.service
+	
+	# Create directories
+	install -d -m 0755 debian/sqlite-otel-collector/var/lib/sqlite-otel-collector
+	install -d -m 0755 debian/sqlite-otel-collector/var/log
+	
+	# Install config if exists
+	if [ -f packaging/config/sqlite-otel-collector.conf ]; then \
+		install -D -m 0644 packaging/config/sqlite-otel-collector.conf \
+			debian/sqlite-otel-collector/etc/sqlite-otel-collector/sqlite-otel-collector.conf; \
+	fi
+
+override_dh_auto_test:
+	go test -v ./...
+
+override_dh_installsystemd:
+	dh_installsystemd --name=sqlite-otel-collector

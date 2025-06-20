@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+# Create user and group
+if ! getent group sqlite-otel >/dev/null; then
+    addgroup --system sqlite-otel
+fi
+
+if ! getent passwd sqlite-otel >/dev/null; then
+    adduser --system --ingroup sqlite-otel --home /var/lib/sqlite-otel-collector \
+        --no-create-home --gecos "SQLite OTEL Collector" sqlite-otel
+fi
+
+#DEBHELPER#
+
+exit 0

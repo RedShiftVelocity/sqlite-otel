@@ -1,0 +1,15 @@
+Source: sqlite-otel-collector
+Section: net
+Priority: optional
+Maintainer: Claude Code <noreply@anthropic.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21), dh-golang, dh-systemd
+Standards-Version: 4.6.0
+Homepage: https://github.com/RedShiftVelocity/sqlite-otel
+
+Package: sqlite-otel-collector
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: OpenTelemetry collector with SQLite storage
+ A standalone OpenTelemetry collector service that receives telemetry data
+ and persists it to an embedded SQLite database. Supports traces, metrics,
+ and logs via OTLP/HTTP protocol.

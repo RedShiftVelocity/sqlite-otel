@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+# Set proper ownership
+if [ -d /var/lib/sqlite-otel-collector ]; then
+    chown sqlite-otel:sqlite-otel /var/lib/sqlite-otel-collector
+fi
+
+#DEBHELPER#
+
+# Start service on install
+if [ "$1" = "configure" ]; then
+    systemctl --system daemon-reload >/dev/null || true
+    deb-systemd-invoke enable sqlite-otel-collector.service >/dev/null || true
+    deb-systemd-invoke start sqlite-otel-collector.service >/dev/null || true
+fi
+
+exit 0

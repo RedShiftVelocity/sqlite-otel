@@ -28,4 +28,16 @@ build-all:
 	GOOS=darwin GOARCH=amd64 go build -o $(BINARY_NAME)-darwin-amd64 .
 	GOOS=windows GOARCH=amd64 go build -o $(BINARY_NAME)-windows-amd64.exe .
 
-.PHONY: build run clean test build-all
+# Package building
+package-rpm:
+	@echo "Building RPM package..."
+	@./packaging/build-rpm.sh
+
+package-deb:
+	@echo "Building DEB package..."
+	@./packaging/build-deb.sh
+
+package-all: package-rpm package-deb
+	@echo "All packages built successfully"
+
+.PHONY: build run clean test build-all package-rpm package-deb package-all
