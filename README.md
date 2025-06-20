@@ -44,20 +44,20 @@ Database schema will be automatically initialized on first startup, creating tab
 - Write collected data to both file and SQLite simultaneously
 - Database schema initialization
 
-### v0.4 - Execution Logging
+### v0.4 - Service Mode
+- Linux systemd service integration
+- Graceful shutdown handling
+- Service installation and management scripts
+
+### v0.5 - Execution Logging
 - Add dedicated log file for service execution metadata
 - Separate operational logs from telemetry data
 - Log rotation and management capabilities
 
-### v0.5 - SQLite Focus
+### v0.6 - SQLite Focus
 - Remove file output for telemetry data (SQLite only)
 - Maintain execution metadata logging to separate log file
 - Performance optimizations for SQLite operations
-
-### v0.6 - Service Mode
-- Linux systemd service integration
-- Graceful shutdown handling
-- Service installation and management scripts
 
 ### v0.7 - Distribution
 - Cross-platform build system
