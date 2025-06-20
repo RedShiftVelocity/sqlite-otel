@@ -45,13 +45,13 @@ func main() {
 	dbDir := filepath.Dir(*dbPath)
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		logger.Error("Failed to create database directory: %v", err)
-		log.Fatalf("Failed to create database directory: %v", err)
+		os.Exit(1)
 	}
 
 	// Initialize database
 	if err := database.InitDB(*dbPath); err != nil {
 		logger.Error("Failed to initialize database: %v", err)
-		log.Fatalf("Failed to initialize database: %v", err)
+		os.Exit(1)
 	}
 	defer database.CloseDB()
 
@@ -61,14 +61,12 @@ func main() {
 	address := fmt.Sprintf(":%d", *port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
+		logger.Error("Failed to create listener on port %d: %v", *port, err)
 		if *port == 4318 {
-			logger.Error("Failed to create listener on port %d: %v", *port, err)
-			log.Fatalf("Failed to create listener on port %d: %v\nPort 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)", 
-				*port, err, os.Args[0], os.Args[0])
-		} else {
-			logger.Error("Failed to create listener on port %d: %v", *port, err)
-			log.Fatalf("Failed to create listener on port %d: %v", *port, err)
+			fmt.Fprintf(os.Stderr, "Port 4318 appears to be in use. Try:\n  %s -port 4319\n  %s -port 0  (for random port)\n", 
+				os.Args[0], os.Args[0])
 		}
+		os.Exit(1)
 	}
 	
 	// Get the actual port that was assigned
@@ -99,7 +97,7 @@ func main() {
 	go func() {
 		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed: %v", err)
-			log.Fatalf("Server failed: %v", err)
+			os.Exit(1)
 		}
 	}()
 	
@@ -115,13 +113,21 @@ func main() {
 	// Shutdown the server gracefully
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("Server shutdown error: %v", err)
-		log.Printf("Server shutdown error: %v", err)
 	}
 	logger.Info("Server stopped successfully")
 }
 
 // getDefaultDBPath returns the default database path following XDG Base Directory specification
 func getDefaultDBPath() string {
+	// Detect if running in service mode (no home directory or systemd)
+	_, err := os.UserHomeDir()
+	isServiceMode := err != nil || os.Getenv("INVOCATION_ID") != ""
+	
+	if isServiceMode {
+		// Running as a service, use system directory
+		return "/var/lib/sqlite-otel-collector/otel-collector.db"
+	}
+	
 	// First check XDG_DATA_HOME
 	dataHome := os.Getenv("XDG_DATA_HOME")
 	
@@ -141,8 +147,12 @@ func getDefaultDBPath() string {
 
 // getDefaultLogPath returns the default log file path
 func getDefaultLogPath() string {
-	// For service mode, write to standard location
-	if os.Getuid() == 0 || os.Getenv("USER") == "" || os.Getenv("INVOCATION_ID") != "" {
+	// Detect if running in service mode (no home directory or systemd)
+	_, err := os.UserHomeDir()
+	isServiceMode := err != nil || os.Getenv("INVOCATION_ID") != ""
+	
+	if isServiceMode {
+		// Running as a service, use system directory
 		return "/var/log/sqlite-otel-collector.log"
 	}
 	

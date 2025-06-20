@@ -11,9 +11,12 @@ import (
 )
 
 var (
-	logger     *Logger
-	loggerOnce sync.Once
-	loggerMu   sync.RWMutex
+	// Pre-initialize with a default logger to avoid race conditions
+	globalLogger = &Logger{
+		stdLogger: log.New(os.Stdout, "", log.LstdFlags),
+	}
+	loggerMu sync.RWMutex
+	initOnce sync.Once
 )
 
 // Logger handles application logging
@@ -27,8 +30,14 @@ type Logger struct {
 // Init initializes the logger with the given log file path
 func Init(logFilePath string) error {
 	var err error
-	loggerOnce.Do(func() {
-		logger, err = newLogger(logFilePath)
+	initOnce.Do(func() {
+		var newL *Logger
+		newL, err = newLogger(logFilePath)
+		if err == nil {
+			loggerMu.Lock()
+			globalLogger = newL
+			loggerMu.Unlock()
+		}
 	})
 	return err
 }
@@ -65,50 +74,35 @@ func newLogger(logFilePath string) (*Logger, error) {
 func GetLogger() *Logger {
 	loggerMu.RLock()
 	defer loggerMu.RUnlock()
-	if logger == nil {
-		// Return a default stdout logger if not initialized
-		return &Logger{stdLogger: log.New(os.Stdout, "", log.LstdFlags)}
+	return globalLogger
+}
+
+// log is the internal logging method
+func (l *Logger) log(level, format string, v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	
+	msg := fmt.Sprintf(level+" "+format, v...)
+	if l.fileLogger != nil {
+		l.fileLogger.Println(msg)
+	} else {
+		l.stdLogger.Println(msg)
 	}
-	return logger
 }
 
 // Info logs an info message
 func (l *Logger) Info(format string, v ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	
-	msg := fmt.Sprintf("[INFO] "+format, v...)
-	if l.fileLogger != nil {
-		l.fileLogger.Println(msg)
-	} else {
-		l.stdLogger.Println(msg)
-	}
+	l.log("[INFO]", format, v...)
 }
 
 // Error logs an error message
 func (l *Logger) Error(format string, v ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	
-	msg := fmt.Sprintf("[ERROR] "+format, v...)
-	if l.fileLogger != nil {
-		l.fileLogger.Println(msg)
-	} else {
-		l.stdLogger.Println(msg)
-	}
+	l.log("[ERROR]", format, v...)
 }
 
 // Debug logs a debug message
 func (l *Logger) Debug(format string, v ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	
-	msg := fmt.Sprintf("[DEBUG] "+format, v...)
-	if l.fileLogger != nil {
-		l.fileLogger.Println(msg)
-	} else {
-		l.stdLogger.Println(msg)
-	}
+	l.log("[DEBUG]", format, v...)
 }
 
 // LogStartup logs application startup information
@@ -142,8 +136,8 @@ func Close() error {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
 	
-	if logger != nil {
-		return logger.Close()
+	if globalLogger != nil {
+		return globalLogger.Close()
 	}
 	return nil
 }

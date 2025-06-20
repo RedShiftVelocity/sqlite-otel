@@ -1,6 +1,6 @@
 # Development Journal
 
-## [2025-06-20] - PR #X: v0.5 Execution Logging Implementation
+## [2025-06-20] - PR #47: v0.5 Execution Logging Implementation
 ### Actions:
 - Added logging package with structured logging capabilities
 - Added --log-file command-line flag with intelligent defaults
@@ -23,6 +23,15 @@
 - XDG_STATE_HOME is the proper location for application state/logs in user mode
 - io.MultiWriter allows efficient writing to multiple destinations
 - sync.Once ensures safe one-time initialization in concurrent environments
+- os.Getuid() is not portable to Windows - use os.UserHomeDir() for detection
+- Pre-initializing global logger prevents race conditions during startup
+
+### Code Review Improvements (from Gemini and O3):
+- **CRITICAL**: Replaced os.Getuid() with portable service detection using os.UserHomeDir()
+- **HIGH**: Fixed race condition by pre-initializing global logger
+- **MEDIUM**: Removed redundant logging before os.Exit()
+- **MEDIUM**: Consolidated logging methods to reduce code duplication
+- Used internal log() method to eliminate repeated code in Info/Error/Debug
 
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
