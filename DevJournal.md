@@ -1,5 +1,29 @@
 # Development Journal
 
+## [2025-06-20] - PR #X: v0.5 Execution Logging Implementation
+### Actions:
+- Added logging package with structured logging capabilities
+- Added --log-file command-line flag with intelligent defaults
+- Implemented execution metadata logging (startup, shutdown, errors)
+- Added telemetry activity logging for debugging
+- Logs write to both stdout and file when log file is specified
+
+### Decisions:
+- Used XDG_STATE_HOME for user mode logs (~/.local/state/sqlite-otel/execution.log)
+- Service mode defaults to /var/log/sqlite-otel-collector.log
+- Multi-writer approach: logs go to both stdout and file for visibility
+- Structured logging with levels: INFO, ERROR, DEBUG
+- Thread-safe logging with mutex protection
+
+### Challenges:
+- Ensuring thread-safe concurrent logging
+- Choosing appropriate default paths for different execution contexts
+
+### Learnings:
+- XDG_STATE_HOME is the proper location for application state/logs in user mode
+- io.MultiWriter allows efficient writing to multiple destinations
+- sync.Once ensures safe one-time initialization in concurrent environments
+
 ## [2025-06-20] - Roadmap Reorganization
 ### Actions:
 - Reordered development roadmap to prioritize Service Mode implementation
