@@ -2,10 +2,14 @@ version: 2.1
 
 # SQLite OTEL Collector CI Configuration
 #
-# DOCKER TESTING (to save CircleCI credits):
-# - Regular development: Fast build + test only (no Docker)  
+# OPTIMIZED WORKFLOWS (to save CircleCI credits):
+# - Regular development: Fast build + test only (no Docker, no DEB packaging)  
 # - Docker testing: Only runs for version tags (v1.0.0) or branches starting with "docker/"
-# - Example: Create branch "docker/test-new-feature" to test Docker changes
+# - DEB packaging: Only runs for version tags (v1.0.0) or branches starting with "deb/"
+# 
+# Examples:
+# - Create branch "docker/test-new-feature" to test Docker changes
+# - Create branch "deb/test-packaging" to test DEB package changes
 
 commands:
   setup_go_modules:
@@ -215,7 +219,125 @@ jobs:
             docker rm sqlite-otel-test || true
             echo "Cleanup completed"
 
-  # Fourth: Create release (only for tags)
+  # Fourth: Build DEB package (for deb/* branches and version tags)
+  deb-build-and-test:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Install DEB packaging tools
+          command: |
+            set -e
+            echo "Installing DEB packaging tools..."
+            sudo apt-get update
+            sudo apt-get install -y build-essential devscripts debhelper dpkg-dev
+            
+            # Install Go SQLite dependencies for packaging
+            echo "Installing Go SQLite dependencies..."
+            sudo apt-get install -y libsqlite3-dev golang-github-mattn-go-sqlite3-dev || {
+              echo "Warning: golang-github-mattn-go-sqlite3-dev not available in this environment"
+              echo "Falling back to basic libsqlite3-dev only"
+              sudo apt-get install -y libsqlite3-dev
+            }
+            echo "✅ DEB packaging tools installed"
+      - run:
+          name: Build DEB package
+          command: |
+            set -e
+            echo "Building DEB package..."
+            
+            # Build the DEB package using the existing Makefile target
+            # If build dependencies are missing, the script will handle it gracefully
+            make package-deb
+            echo "✅ DEB package built successfully"
+            
+            # Show package info
+            echo "DEB package details:"
+            ls -la dist/deb/
+            if [ -f dist/deb/sqlite-otel-collector_*.deb ]; then
+              dpkg --info dist/deb/sqlite-otel-collector_*.deb
+              echo "Package contents:"
+              dpkg --contents dist/deb/sqlite-otel-collector_*.deb
+            fi
+      - run:
+          name: Test DEB package installation
+          command: |
+            set -e
+            echo "Testing DEB package installation..."
+            
+            # Find the built package
+            DEB_FILE=$(find dist/deb -name "sqlite-otel-collector_*.deb" | head -1)
+            if [ -z "$DEB_FILE" ]; then
+              echo "ERROR: No DEB package found"
+              exit 1
+            fi
+            
+            echo "Testing package: $DEB_FILE"
+            
+            # Test package installation (dry run first)
+            echo "Testing package dependencies..."
+            sudo dpkg --dry-run -i "$DEB_FILE"
+            
+            # Actually install the package
+            echo "Installing package..."
+            sudo dpkg -i "$DEB_FILE" || {
+              echo "Installation failed, trying to fix dependencies..."
+              sudo apt-get install -f -y
+            }
+            
+            # Verify installation
+            echo "Verifying installation..."
+            dpkg -l | grep sqlite-otel-collector
+            
+            # Check if binary is installed correctly
+            if [ -f /usr/bin/sqlite-otel-collector ]; then
+              echo "✅ Binary installed at /usr/bin/sqlite-otel-collector"
+              /usr/bin/sqlite-otel-collector --version
+            else
+              echo "ERROR: Binary not found at expected location"
+              exit 1
+            fi
+            
+            # Check systemd service (don't start it, just verify it exists)
+            if systemctl list-unit-files | grep -q sqlite-otel-collector; then
+              echo "✅ Systemd service installed"
+              systemctl status sqlite-otel-collector --no-pager || true
+            else
+              echo "WARNING: Systemd service not found"
+            fi
+            
+            echo "✅ DEB package installation test completed successfully"
+      - run:
+          name: Test DEB package removal
+          command: |
+            set -e
+            echo "Testing DEB package removal..."
+            
+            # Remove the package
+            sudo dpkg -r sqlite-otel-collector
+            
+            # Verify removal
+            if ! dpkg -l | grep -q sqlite-otel-collector; then
+              echo "✅ Package removed successfully"
+            else
+              echo "WARNING: Package still appears in dpkg list"
+            fi
+            
+            # Check if binary was removed
+            if [ ! -f /usr/bin/sqlite-otel-collector ]; then
+              echo "✅ Binary removed successfully"
+            else
+              echo "WARNING: Binary still exists after package removal"
+            fi
+            
+            echo "✅ DEB package removal test completed"
+      - store_artifacts:
+          path: dist/deb/
+          destination: deb-packages
+
+  # Fifth: Create release (only for tags)
   release:
     executor: go-executor
     steps:
@@ -236,7 +358,7 @@ jobs:
 workflows:
   version: 2.1
   
-  # Fast workflow for regular development (no Docker)
+  # Fast workflow for regular development (no Docker, no DEB)
   build-and-test:
     jobs:
       - build:
@@ -245,6 +367,7 @@ workflows:
               only: /.*/
               ignore: 
                 - /docker\/.*/
+                - /deb\/.*/
             tags:
               ignore: /.*/
       - test:
@@ -255,6 +378,7 @@ workflows:
               only: /.*/
               ignore: 
                 - /docker\/.*/
+                - /deb\/.*/
             tags:
               ignore: /.*/
   
@@ -286,6 +410,40 @@ workflows:
       - release:
           requires:
             - docker-build-and-test
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
+  
+  # DEB packaging for deb/* branches and version tags
+  deb-workflow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /deb\/.*/
+            tags:
+              only: /^v.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /deb\/.*/
+            tags:
+              only: /^v.*/
+      - deb-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /deb\/.*/
+            tags:
+              only: /^v.*/
+      - release:
+          requires:
+            - deb-build-and-test
           filters:
             branches:
               ignore: /.*/

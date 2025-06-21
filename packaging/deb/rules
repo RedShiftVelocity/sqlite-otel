@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DH_OPTIONS = -v
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Binary should already be built - just verify it exists
+	test -f sqlite-otel || (echo "Binary sqlite-otel not found. Run 'make build' first." && exit 1)
+
+override_dh_auto_clean:
+	# Skip cleaning to preserve pre-built binary
+	# In normal Debian packaging, this would run 'make clean'
+	# but we're packaging a pre-built binary from CI
+
+override_dh_auto_install:
+	# Install binary (rename from sqlite-otel to sqlite-otel-collector)
+	install -D -m 0755 sqlite-otel debian/sqlite-otel-collector/usr/bin/sqlite-otel-collector
+	
+	# Install systemd service
+	install -D -m 0644 packaging/systemd/sqlite-otel-collector.service \
+		debian/sqlite-otel-collector/lib/systemd/system/sqlite-otel-collector.service
+	
+	# Create directories
+	install -d -m 0755 debian/sqlite-otel-collector/var/lib/sqlite-otel-collector
+	install -d -m 0755 debian/sqlite-otel-collector/var/log
+	
+	# Install config if exists
+	if [ -f packaging/config/sqlite-otel-collector.conf ]; then \
+		install -D -m 0644 packaging/config/sqlite-otel-collector.conf \
+			debian/sqlite-otel-collector/etc/sqlite-otel-collector/sqlite-otel-collector.conf; \
+	fi
+
+override_dh_auto_test:
+	# Skip tests during packaging (should be run in CI)
+
+override_dh_installsystemd:
+	dh_installsystemd --name=sqlite-otel-collector
