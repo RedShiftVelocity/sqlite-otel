@@ -1,7 +1,6 @@
 package logging
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
