@@ -1,5 +1,12 @@
 version: 2.1
 
+# SQLite OTEL Collector CI Configuration
+#
+# DOCKER TESTING (to save CircleCI credits):
+# - Regular development: Fast build + test only (no Docker)  
+# - Docker testing: Only runs for version tags (v1.0.0) or branches starting with "docker/"
+# - Example: Create branch "docker/test-new-feature" to test Docker changes
+
 commands:
   setup_go_modules:
     steps:
@@ -438,37 +445,54 @@ jobs:
 
 workflows:
   version: 2.1
-  build-test-docker:
+  
+  # Fast workflow for regular development (no Docker)
+  build-and-test:
     jobs:
-      # Step 1: Build first
       - build:
           filters:
             branches:
               only: /.*/
+              ignore: 
+                - /docker\/.*/
             tags:
-              only: /.*/
-      
-      # Step 2: Test after successful build
+              ignore: /.*/
       - test:
           requires:
             - build
           filters:
             branches:
               only: /.*/
+              ignore: 
+                - /docker\/.*/
             tags:
-              only: /.*/
-      
-      # Step 3: Build and validate Docker container after successful tests
+              ignore: /.*/
+  
+  # Docker testing for docker/* branches and version tags
+  docker-workflow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /docker\/.*/
+            tags:
+              only: /^v.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /docker\/.*/
+            tags:
+              only: /^v.*/
       - docker-build-and-test:
           requires:
             - test
           filters:
             branches:
-              only: /.*/
+              only: /docker\/.*/
             tags:
-              only: /.*/
-      
-      # Step 4: Create release (only for version tags)
+              only: /^v.*/
       - release:
           requires:
             - docker-build-and-test
