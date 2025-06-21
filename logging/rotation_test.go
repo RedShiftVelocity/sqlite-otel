@@ -97,8 +97,8 @@ func TestMaxBackupsRetention(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		// Write enough to exceed MaxSize
 		logger.Info("Test log message number %d to trigger rotation. Adding extra text to ensure we exceed the size limit.", i)
-		// Small delay to ensure different timestamps
-		time.Sleep(20 * time.Millisecond)
+		// Delay to ensure different timestamps (second precision)
+		time.Sleep(1100 * time.Millisecond)
 	}
 
 	// Wait for background cleanup to complete
