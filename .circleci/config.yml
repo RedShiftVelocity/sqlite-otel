@@ -539,6 +539,7 @@ jobs:
             echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USER --password-stdin
       - run:
           name: Build and push Docker image
+          no_output_timeout: 10m
           command: |
             set -e
             
