@@ -466,7 +466,7 @@ jobs:
   docker-publish:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: small
+    resource_class: medium
     working_directory: ~/repo
     # Add timeout to prevent hanging
     no_output_timeout: 10m
