@@ -1,0 +1,97 @@
+# Docker Compose configuration for SQLite OpenTelemetry Collector
+# Provides production-ready setup with health checks, data persistence, and logging
+
+version: '3.8'
+
+services:
+  sqlite-otel-collector:
+    # Build from local Dockerfile or use pre-built image
+    build: .
+    # Alternative: use pre-built image
+    # image: sqlite-otel-collector:latest
+    
+    container_name: sqlite-otel-collector
+    
+    # Network configuration
+    ports:
+      - "4318:4318"  # OTLP/HTTP endpoint (OpenTelemetry standard)
+    
+    # Data persistence and log management
+    volumes:
+      - otel-data:/var/lib/sqlite-otel-collector     # SQLite database and data files
+      - otel-logs:/var/log                           # Application logs (if using file logging)
+    
+    # Runtime environment configuration
+    environment:
+      - LOG_LEVEL=info                               # Logging verbosity (debug|info|warn|error)
+    
+    # Custom command line arguments (optional)
+    # Uncomment and modify as needed:
+    # command: [
+    #   "--db-path", "/var/lib/sqlite-otel-collector/production.db",
+    #   "--port", "4318",
+    #   "--log-file", "/var/log/sqlite-otel.log",
+    #   "--log-max-size", "100",
+    #   "--log-max-backups", "7",
+    #   "--log-max-age", "30",
+    #   "--log-compress"
+    # ]
+    
+    # Container restart policy
+    restart: unless-stopped
+    
+    # Health monitoring configuration
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4318/health"]
+      interval: 30s      # Check every 30 seconds
+      timeout: 3s        # Timeout after 3 seconds
+      retries: 3         # Mark unhealthy after 3 failed attempts
+      start_period: 5s   # Wait 5 seconds before first check
+    
+    # Resource limits (optional - uncomment for production)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 128M
+    #       cpus: '0.5'
+    #     reservations:
+    #       memory: 64M
+    #       cpus: '0.25'
+    
+    # Security configuration (optional - uncomment for enhanced security)
+    # security_opt:
+    #   - no-new-privileges:true
+    # cap_drop:
+    #   - ALL
+    # cap_add:
+    #   - NET_BIND_SERVICE  # If binding to privileged ports
+    
+    # Network isolation (optional)
+    # networks:
+    #   - otel-network
+
+# Persistent volume definitions
+volumes:
+  otel-data:
+    driver: local
+    # Optional: specify host path for data
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /opt/sqlite-otel/data
+    
+  otel-logs:
+    driver: local
+    # Optional: specify host path for logs  
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /opt/sqlite-otel/logs
+
+# Optional: Network isolation
+# networks:
+#   otel-network:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 172.20.0.0/16

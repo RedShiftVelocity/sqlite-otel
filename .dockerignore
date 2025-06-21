@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+sqlite-otel-collector
+sqlite-otel-collector-*
+dist/
+build/
+releases/
+
+# Test files
+*.db
+*.db-shm
+*.db-wal
+*.log
+coverage.out
+coverage.html
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.circleci/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

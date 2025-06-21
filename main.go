@@ -120,6 +120,22 @@ func run(port int, dbPath string) error {
 	mux.HandleFunc("/v1/metrics", handlers.HandleMetrics)
 	mux.HandleFunc("/v1/logs", handlers.HandleLogs)
 	
+	// Register health endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		// Check database connectivity with timeout
+		ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+		defer cancel()
+		
+		if err := database.DB().PingContext(ctx); err != nil {
+			log.Printf("Health check failed: database ping error: %v", err)
+			http.Error(w, "Database connection failed", http.StatusServiceUnavailable)
+			return
+		}
+		
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	
 	// Create HTTP server
 	server := &http.Server{
 		Handler:      mux,
