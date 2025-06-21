@@ -41,3 +41,6 @@ sqlite-otel-collector-*
 *.db-shm
 *.db-wal
 server_output.log
+
+# Local tools directory
+tools/
