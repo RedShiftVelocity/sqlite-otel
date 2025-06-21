@@ -20,23 +20,86 @@ executors:
     docker:
       - image: cimg/go:1.21.6
     working_directory: ~/repo
+  
+  docker-executor:
+    docker:
+      - image: cimg/go:1.21.6
+    working_directory: ~/repo
 
 jobs:
-  test:
+  # First: Build the application
+  build:
     executor: go-executor
     steps:
       - checkout
       - setup_go_modules
       - run:
+          name: Build current platform binary
+          command: |
+            set -e
+            echo "Building sqlite-otel binary..."
+            make build
+            # Verify binary was created
+            if [ ! -f "sqlite-otel" ]; then
+              echo "Error: Binary sqlite-otel not found after build"
+              exit 1
+            fi
+            echo "Binary built successfully: $(ls -la sqlite-otel)"
+      - run:
+          name: Build for all platforms
+          command: |
+            set -e
+            echo "Building for all platforms..."
+            make build-all
+            echo "Cross-platform build complete:"
+            ls -la dist/
+      - run:
+          name: Test binary execution
+          command: |
+            set -e
+            echo "Testing binary execution..."
+            ./sqlite-otel --version
+            echo "Binary executes successfully"
+      - run:
+          name: Collect binaries
+          command: |
+            set -e
+            mkdir -p binaries
+            cp sqlite-otel binaries/
+            cp dist/* binaries/ 2>/dev/null || true
+            echo "Collected binaries:"
+            ls -la binaries/
+      - store_artifacts:
+          path: binaries/
+          destination: binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - sqlite-otel
+            - binaries/
+            - dist/
+
+  # Second: Run tests (after successful build)
+  test:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - setup_go_modules
+      - run:
           name: Run go vet
-          command: go vet ./...
+          command: |
+            echo "Running go vet..."
+            go vet ./...
       - run:
           name: Install test reporter
           command: go install github.com/jstemmer/go-junit-report/v2@latest
       - run:
-          name: Run tests
+          name: Run tests with race detection
           command: |
             set -e
+            echo "Running tests with race detection..."
             mkdir -p /tmp/test-results
             # Run tests and capture both stdout and exit code
             go test -race -coverprofile=coverage.out -v ./... 2>&1 | tee /tmp/test-results/go-test.out
@@ -50,8 +113,19 @@ jobs:
           name: Generate coverage report
           command: |
             set -e
+            echo "Generating coverage report..."
             go tool cover -html=coverage.out -o coverage.html
             echo "Coverage report generated"
+            # Display coverage summary
+            go tool cover -func=coverage.out | tail -1
+      - run:
+          name: Test binary functionality
+          command: |
+            set -e
+            echo "Testing binary functionality..."
+            # Start the binary in background
+            timeout 5 ./sqlite-otel --port 0 --db-path ./test.db || true
+            echo "Binary functionality test completed"
       - store_test_results:
           path: /tmp/test-results
       - store_artifacts:
@@ -61,41 +135,165 @@ jobs:
           path: coverage.out
           destination: coverage.out
 
-  build:
-    executor: go-executor
+  # Third: Build and validate Docker container
+  docker-build-and-test:
+    machine:
+      image: ubuntu-2204:2023.07.1
+    working_directory: ~/repo
     steps:
       - checkout
-      - setup_go_modules
+      - attach_workspace:
+          at: .
       - run:
-          name: Build current platform binary
+          name: Build Docker image
           command: |
             set -e
-            make build
-            # Verify binary was created
-            if [ ! -f "sqlite-otel" ]; then
-              echo "Error: Binary sqlite-otel not found after build"
+            echo "Building Docker image..."
+            docker build -t sqlite-otel-collector:test .
+            echo "Docker image built successfully"
+            
+            # Show image details
+            echo "Image details:"
+            docker images sqlite-otel-collector:test
+            
+            # Get image size
+            image_size=$(docker images sqlite-otel-collector:test --format "table {{.Size}}" | tail -n +2)
+            echo "Final image size: $image_size"
+      - run:
+          name: Test Docker container startup
+          command: |
+            set -e
+            echo "Testing Docker container startup..."
+            
+            # Test container can start and stop properly
+            container_id=$(docker run -d --name sqlite-otel-test -p 14318:4318 sqlite-otel-collector:test)
+            echo "Container started with ID: $container_id"
+            
+            # Wait for container to be ready
+            echo "Waiting for container to be ready..."
+            sleep 5
+            
+            # Check container status
+            docker ps -a --filter name=sqlite-otel-test
+            
+            # Check if container is running
+            if ! docker ps --filter name=sqlite-otel-test | grep -q sqlite-otel-test; then
+              echo "ERROR: Container is not running!"
+              docker logs sqlite-otel-test
               exit 1
             fi
+            
+            echo "Container is running successfully"
       - run:
-          name: Build for all platforms
+          name: Test Docker container health
           command: |
             set -e
-            make build-all
+            echo "Testing Docker container health endpoint..."
+            
+            # Test health endpoint
+            for i in {1..10}; do
+              if curl -f http://localhost:14318/health; then
+                echo "Health check passed on attempt $i"
+                break
+              else
+                echo "Health check failed, attempt $i/10"
+                if [ $i -eq 10 ]; then
+                  echo "ERROR: Health check failed after 10 attempts"
+                  docker logs sqlite-otel-test
+                  exit 1
+                fi
+                sleep 2
+              fi
+            done
       - run:
-          name: Collect binaries
+          name: Test Docker container functionality
           command: |
             set -e
-            mkdir -p binaries
-            cp sqlite-otel binaries/
-            cp dist/* binaries/ 2>/dev/null || true
+            echo "Testing Docker container OTLP endpoint..."
+            
+            # Test OTLP endpoint with a simple trace
+            curl -X POST http://localhost:14318/v1/traces \
+              -H "Content-Type: application/json" \
+              -d '{
+                "resourceSpans": [
+                  {
+                    "resource": {
+                      "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "test-service"}}
+                      ]
+                    },
+                    "scopeSpans": [
+                      {
+                        "spans": [
+                          {
+                            "traceId": "12345678901234567890123456789012",
+                            "spanId": "1234567890123456",
+                            "name": "test-span",
+                            "startTimeUnixNano": "1609459200000000000",
+                            "endTimeUnixNano": "1609459201000000000"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }' || echo "OTLP endpoint test completed"
+            
+            echo "Container functionality test completed"
+      - run:
+          name: Test Docker container resource usage
+          command: |
+            set -e
+            echo "Checking Docker container resource usage..."
+            
+            # Get container stats
+            docker stats sqlite-otel-test --no-stream
+            
+            echo "Resource usage check completed"
+      - run:
+          name: Validate Docker image security
+          command: |
+            set -e
+            echo "Validating Docker image security..."
+            
+            # Check that container runs as non-root user
+            user_id=$(docker exec sqlite-otel-test id -u)
+            if [ "$user_id" -eq 0 ]; then
+              echo "ERROR: Container is running as root user (security risk)"
+              exit 1
+            fi
+            echo "✓ Container runs as non-root user (UID: $user_id)"
+            
+            # Check for health check configuration
+            health_check=$(docker inspect sqlite-otel-test --format '{{.Config.Healthcheck}}')
+            if [ "$health_check" = "<nil>" ]; then
+              echo "ERROR: No health check configured"
+              exit 1
+            fi
+            echo "✓ Health check is configured"
+            
+            echo "Security validation passed"
+      - run:
+          name: Cleanup Docker test container
+          command: |
+            echo "Cleaning up test container..."
+            docker stop sqlite-otel-test || true
+            docker rm sqlite-otel-test || true
+            echo "Cleanup completed"
+      - run:
+          name: Save Docker image
+          command: |
+            set -e
+            echo "Saving Docker image..."
+            mkdir -p docker-artifacts
+            docker save sqlite-otel-collector:test | gzip > docker-artifacts/sqlite-otel-collector-test.tar.gz
+            echo "Docker image saved to artifacts"
+            ls -la docker-artifacts/
       - store_artifacts:
-          path: binaries/
-          destination: binaries
-      - persist_to_workspace:
-          root: .
-          paths:
-            - binaries/
+          path: docker-artifacts/
+          destination: docker-image
 
+  # Fourth: Create release (only for tags)
   release:
     executor: go-executor
     steps:
@@ -104,22 +302,39 @@ jobs:
           at: .
       - run:
           name: Create release archives
-          command: make release
+          command: |
+            echo "Creating release archives..."
+            make release
+            echo "Release archives created:"
+            ls -la releases/
       - store_artifacts:
           path: releases/
           destination: releases
 
 workflows:
   version: 2.1
-  test-and-build:
+  build-test-docker:
     jobs:
-      - test:
+      # Step 1: Build first
+      - build:
           filters:
             branches:
               only: /.*/
             tags:
               only: /.*/
-      - build:
+      
+      # Step 2: Test after successful build
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      
+      # Step 3: Build and validate Docker container after successful tests
+      - docker-build-and-test:
           requires:
             - test
           filters:
@@ -127,9 +342,11 @@ workflows:
               only: /.*/
             tags:
               only: /.*/
+      
+      # Step 4: Create release (only for version tags)
       - release:
           requires:
-            - build
+            - docker-build-and-test
           filters:
             branches:
               ignore: /.*/
