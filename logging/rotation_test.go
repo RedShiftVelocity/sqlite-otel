@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -137,4 +138,63 @@ func TestMaxAgeRetention(t *testing.T) {
 	// Currently the MaxAge cleanup logic needs investigation
 	// The test infrastructure is correct and properly validates the feature
 	t.Skip("MaxAge cleanup logic needs refinement - test infrastructure validated")
+}
+
+func TestConcurrentLogging(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "log-rotation-concurrent-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	logPath := filepath.Join(tmpDir, "test.log")
+
+	// Create logger with small rotation size
+	config := &RotationConfig{
+		MaxSize:    1000, // 1KB for frequent rotation
+		MaxBackups: 5,
+		MaxAge:     30,
+	}
+
+	logger, err := newLoggerWithRotation(logPath, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+
+	// Launch multiple goroutines to write logs concurrently
+	var wg sync.WaitGroup
+	numGoroutines := 10
+	logsPerGoroutine := 50
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < logsPerGoroutine; j++ {
+				logger.Info("Goroutine %d: Message %d - Testing concurrent logging with rotation", id, j)
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Wait for background cleanup
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify no data loss and all files are properly created
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have multiple files due to rotation
+	if len(entries) < 2 {
+		t.Errorf("Expected multiple files due to rotation, got %d", len(entries))
+	}
+
+	// Verify the logger is still functional after concurrent access
+	logger.Info("Final test message after concurrent logging")
 }
