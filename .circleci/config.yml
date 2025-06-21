@@ -468,8 +468,6 @@ jobs:
       image: ubuntu-2204:2024.01.1
     resource_class: medium
     working_directory: ~/repo
-    # Add timeout to prevent hanging
-    no_output_timeout: 10m
     steps:
       - checkout
       - attach_workspace:
@@ -539,6 +537,7 @@ jobs:
             echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USER --password-stdin
       - run:
           name: Build and push Docker image
+          no_output_timeout: 10m
           command: |
             set -e
             
