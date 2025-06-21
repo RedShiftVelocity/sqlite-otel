@@ -163,5 +163,10 @@ help:
 	@echo "  make run-example    - Run with example flags"
 	@echo "  make version        - Show version information"
 	@echo "  make help           - Show this help"
+	@echo "  make package-deb    - Build DEB package"
 
-.PHONY: all build run clean test test-coverage build-all build-linux install uninstall fmt lint tidy verify release dev run-example version help
+# Package targets
+package-deb:
+	./packaging/scripts/build-deb.sh
+
+.PHONY: all build run clean test test-coverage build-all build-linux install uninstall fmt lint tidy verify release dev run-example version help package-deb
