@@ -4,10 +4,16 @@ version: 2.1
 #
 # OPTIMIZED WORKFLOWS (to save CircleCI credits):
 # - Regular development: Fast build + test only (no Docker, no DEB, no RPM packaging)  
+# - Main branch: Build + test + Docker publish (development images with -dev suffix)
 # - Docker testing: Only runs for version tags (v1.0.0) or branches starting with "docker/"
 # - DEB packaging: Only runs for version tags (v1.0.0) or branches starting with "deb/"
 # - RPM packaging: Only runs for version tags (v1.0.0) or branches starting with "rpm/"
 # 
+# Docker Publishing Strategy:
+# - Tags (v1.0.0): Stable releases → ghcr.io/owner/repo:v1.0.0 + latest
+# - Main branch: Development builds → ghcr.io/owner/repo:v0.7.92-dev  
+# - Docker branches: Feature builds → ghcr.io/owner/repo:v0.7.92-dev-feature-name
+#
 # Examples:
 # - Create branch "docker/test-new-feature" to test Docker changes
 # - Create branch "deb/test-packaging" to test DEB package changes
@@ -456,6 +462,109 @@ jobs:
           path: releases/
           destination: releases
 
+  # GitHub Container Registry Docker publishing
+  docker-publish:
+    machine:
+      image: ubuntu-2204:2024.01.1
+    resource_class: medium
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Set up Docker Buildx
+          command: |
+            # Install Docker Buildx
+            docker buildx create --name multiplatform --driver docker-container --use
+            docker buildx inspect --bootstrap
+      - run:
+          name: Determine version and tags
+          command: |
+            set -e
+            
+            # Determine version based on branch/tag
+            if [ -n "$CIRCLE_TAG" ]; then
+              # Tag build - stable version
+              VERSION=$CIRCLE_TAG
+              IMAGE_TAG=$VERSION
+              ADDITIONAL_TAGS="latest"
+              echo "Building stable release: $VERSION"
+            elif [ "$CIRCLE_BRANCH" = "main" ]; then
+              # Main branch - development version
+              VERSION=$(./sqlite-otel --version | head -1 | awk '{print $2}')
+              IMAGE_TAG="${VERSION}-dev"
+              ADDITIONAL_TAGS=""
+              echo "Building development version from main: $IMAGE_TAG"
+            elif [[ "$CIRCLE_BRANCH" =~ ^docker/.* ]]; then
+              # Docker branch - development version
+              VERSION=$(./sqlite-otel --version | head -1 | awk '{print $2}')
+              BRANCH_SUFFIX=$(echo $CIRCLE_BRANCH | sed 's/docker\///' | sed 's/[^a-zA-Z0-9]/-/g')
+              IMAGE_TAG="${VERSION}-dev-${BRANCH_SUFFIX}"
+              ADDITIONAL_TAGS=""
+              echo "Building development version from docker branch: $IMAGE_TAG"
+            else
+              echo "Unexpected branch/tag context"
+              exit 1
+            fi
+            
+            # Export variables for later steps
+            echo "export VERSION='$VERSION'" >> $BASH_ENV
+            echo "export IMAGE_TAG='$IMAGE_TAG'" >> $BASH_ENV
+            echo "export ADDITIONAL_TAGS='$ADDITIONAL_TAGS'" >> $BASH_ENV
+            
+            echo "Version: $VERSION"
+            echo "Image Tag: $IMAGE_TAG"
+            echo "Additional Tags: $ADDITIONAL_TAGS"
+      - run:
+          name: Login to GitHub Container Registry
+          command: |
+            echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+      - run:
+          name: Build and push multi-platform Docker image
+          command: |
+            set -e
+            
+            # Registry and image details
+            REGISTRY="ghcr.io"
+            REPO_OWNER=$(echo $CIRCLE_PROJECT_USERNAME | tr '[:upper:]' '[:lower:]')
+            REPO_NAME=$(echo $CIRCLE_PROJECT_REPONAME | tr '[:upper:]' '[:lower:]')
+            BASE_IMAGE="${REGISTRY}/${REPO_OWNER}/${REPO_NAME}"
+            
+            echo "Building and pushing to: $BASE_IMAGE"
+            
+            # Build tag arguments
+            TAG_ARGS="--tag ${BASE_IMAGE}:${IMAGE_TAG}"
+            
+            # Add additional tags for stable releases
+            if [ -n "$ADDITIONAL_TAGS" ]; then
+              for tag in $ADDITIONAL_TAGS; do
+                TAG_ARGS="$TAG_ARGS --tag ${BASE_IMAGE}:${tag}"
+              done
+            fi
+            
+            echo "Tag arguments: $TAG_ARGS"
+            
+            # Build and push multi-platform image
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --push \
+              $TAG_ARGS \
+              --label "org.opencontainers.image.source=https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" \
+              --label "org.opencontainers.image.version=${VERSION}" \
+              --label "org.opencontainers.image.revision=${CIRCLE_SHA1}" \
+              --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+              .
+            
+            echo "✅ Multi-platform Docker image published successfully"
+            echo "Images published:"
+            echo "  ${BASE_IMAGE}:${IMAGE_TAG}"
+            if [ -n "$ADDITIONAL_TAGS" ]; then
+              for tag in $ADDITIONAL_TAGS; do
+                echo "  ${BASE_IMAGE}:${tag}"
+              done
+            fi
+
 workflows:
   version: 2.1
   
@@ -467,6 +576,7 @@ workflows:
             branches:
               only: /.*/
               ignore: 
+                - main
                 - /docker\/.*/
                 - /deb\/.*/
                 - /rpm\/.*/
@@ -479,13 +589,48 @@ workflows:
             branches:
               only: /.*/
               ignore: 
+                - main
                 - /docker\/.*/
                 - /deb\/.*/
                 - /rpm\/.*/
             tags:
               ignore: /.*/
   
-  # Docker testing for docker/* branches and version tags
+  # Main branch Docker publishing (development builds)
+  main-docker-workflow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: main
+            tags:
+              ignore: /.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: main
+            tags:
+              ignore: /.*/
+      - docker-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+            tags:
+              ignore: /.*/
+      - docker-publish:
+          requires:
+            - docker-build-and-test
+          filters:
+            branches:
+              only: main
+            tags:
+              ignore: /.*/
+
+  # Docker testing and publishing for docker/* branches and version tags
   docker-workflow:
     jobs:
       - build:
@@ -510,9 +655,17 @@ workflows:
               only: /docker\/.*/
             tags:
               only: /^v.*/
-      - release:
+      - docker-publish:
           requires:
             - docker-build-and-test
+          filters:
+            branches:
+              only: /docker\/.*/
+            tags:
+              only: /^v.*/
+      - release:
+          requires:
+            - docker-publish
           filters:
             branches:
               ignore: /.*/
