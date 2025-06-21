@@ -468,14 +468,13 @@ jobs:
       image: ubuntu-2204:2024.01.1
     resource_class: medium
     working_directory: ~/repo
-    # Add timeout to prevent hanging
-    no_output_timeout: 10m
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
           name: Set up Docker
+          no_output_timeout: 5m
           command: |
             # Basic Docker setup - no buildx for simplicity
             docker info
@@ -532,6 +531,7 @@ jobs:
             echo "========================="
       - run:
           name: Login to GitHub Container Registry
+          no_output_timeout: 5m
           command: |
             # Use CIRCLE_PROJECT_USERNAME if GITHUB_USERNAME is not set
             GITHUB_USER=${GITHUB_USERNAME:-$CIRCLE_PROJECT_USERNAME}
