@@ -5,7 +5,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/sqlite-otel
+ExecStart=/usr/local/bin/sqlite-otel -log-file /var/lib/sqlite-otel-collector/sqlite-otel-collector.log
 Restart=always
 RestartSec=5
 User=sqlite-otel
