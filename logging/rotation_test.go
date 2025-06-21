@@ -23,6 +23,10 @@ func TestRotationConfig(t *testing.T) {
 	if config.MaxAge != 30 {
 		t.Errorf("Expected MaxAge to be 30, got %d", config.MaxAge)
 	}
+	
+	if !config.Compress {
+		t.Error("Expected Compress to be true")
+	}
 }
 
 func TestLogRotation(t *testing.T) {
@@ -197,4 +201,83 @@ func TestConcurrentLogging(t *testing.T) {
 
 	// Verify the logger is still functional after concurrent access
 	logger.Info("Final test message after concurrent logging")
+}
+
+func TestCompressFile(t *testing.T) {
+	// Create temp file
+	tmpFile, err := os.CreateTemp("", "compress-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name() + ".gz")
+	
+	// Write test data
+	testData := "Test data for compression"
+	if _, err := tmpFile.WriteString(testData); err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close()
+	
+	// Compress file
+	if err := compressFile(tmpFile.Name()); err != nil {
+		t.Fatal(err)
+	}
+	
+	// Check compressed file exists
+	if _, err := os.Stat(tmpFile.Name() + ".gz"); err != nil {
+		t.Error("Compressed file not found")
+	}
+}
+
+func TestLogRotationWithCompression(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "log-rotation-compression-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	
+	logPath := filepath.Join(tmpDir, "test.log")
+	
+	// Create logger with compression enabled
+	config := &RotationConfig{
+		MaxSize:  100,  // 100 bytes for easy testing
+		Compress: true, // Enable compression
+	}
+	
+	logger, err := newLoggerWithRotation(logPath, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+	
+	// Write enough data to trigger rotation
+	for i := 0; i < 10; i++ {
+		logger.Info("Test log message number %d", i)
+	}
+	
+	// Wait for background compression to complete
+	time.Sleep(500 * time.Millisecond)
+	
+	// Check that compressed backup files exist
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	var fileNames []string
+	compressedFound := false
+	for _, entry := range entries {
+		fileNames = append(fileNames, entry.Name())
+		if strings.HasSuffix(entry.Name(), ".gz") {
+			compressedFound = true
+		}
+	}
+	
+	t.Logf("Files in directory: %v", fileNames)
+	
+	if !compressedFound {
+		t.Error("No compressed backup files found")
+	}
 }
