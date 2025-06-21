@@ -1,0 +1,59 @@
+sqlite-otel-collector AUTHORS
+==============================
+
+## Project Maintainers
+
+RedShiftVelocity <https://github.com/RedShiftVelocity>
+- Original author and primary maintainer
+- Core architecture and implementation
+- Database layer and OTLP protocol support
+
+## Contributors
+
+### Build System
+- Autotools build system implementation
+- Cross-platform compatibility improvements
+- Distribution packaging support
+
+### Documentation
+- Installation guides and user documentation
+- API documentation and examples
+- Troubleshooting guides
+
+## Special Thanks
+
+### Dependencies
+- mattn/go-sqlite3 - SQLite3 driver for Go
+- OpenTelemetry community - OTLP protocol specifications
+- Go team - Excellent cross-compilation support
+
+### Testing and Feedback
+- Community testers across different Linux distributions
+- Early adopters providing feedback and bug reports
+- Distribution package maintainers
+
+## Contributing
+
+Contributions are welcome! Please see:
+- GitHub: https://github.com/RedShiftVelocity/sqlite-otel
+- Issues: https://github.com/RedShiftVelocity/sqlite-otel/issues
+- Pull Requests: https://github.com/RedShiftVelocity/sqlite-otel/pulls
+
+### How to Contribute
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+### Areas Needing Help
+- Testing on additional Linux distributions
+- Performance optimizations
+- Additional OTLP features
+- Documentation improvements
+- Translation to other languages
+
+## License
+
+This project is licensed under the MIT License.
+See LICENSE file for full license text.

@@ -1,0 +1,45 @@
+sqlite-otel-collector NEWS
+===========================
+
+## Version 0.7.0 (unreleased)
+
+### New Features:
+- Added autotools build system support (configure/make)
+- Cross-compilation support via GOOS/GOARCH variables
+- Systemd integration with optional service file installation
+- Configurable installation directories
+- Debug build option with --enable-debug
+- Multi-architecture build targets
+- Standard Unix installation workflow
+
+### Build System:
+- Added configure.ac with comprehensive feature detection
+- Added Makefile.am with proper automake integration
+- Added autogen.sh script for developers
+- Added INSTALL documentation with detailed instructions
+- Support for system SQLite3 library (optional)
+- Automatic Go version checking (requires 1.21+)
+- PKG_CONFIG integration for dependency detection
+
+### Installation:
+- Standard `./configure && make && make install` workflow
+- Customizable prefix and directory locations
+- Automatic directory creation during installation
+- Proper uninstall support
+- Distribution-friendly packaging support
+
+### Compatibility:
+- Works on all major Linux distributions
+- Support for Ubuntu/Debian, RHEL/CentOS/Fedora, Alpine, Arch
+- Cross-compilation for ARM64, ARM, and other architectures
+- Compatible with both old and new versions of autotools
+
+### Developer Experience:
+- Simplified build process for packagers
+- Standard autotools conventions
+- Comprehensive configuration options
+- Better integration with distribution build systems
+
+## Previous Versions
+
+See DevJournal.md for detailed development history.

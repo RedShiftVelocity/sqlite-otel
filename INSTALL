@@ -1,0 +1,219 @@
+INSTALLATION INSTRUCTIONS
+========================
+
+SQLite OpenTelemetry Collector can be built and installed using the standard autotools workflow.
+
+## Prerequisites
+
+### Required:
+- Go 1.21 or later
+- autotools (autoconf, automake, aclocal)
+- pkg-config
+- make
+- C compiler (for cgo dependencies)
+
+### Optional:
+- systemd development files (for systemd integration)
+- sqlite3 development files (if using --with-system-sqlite)
+
+### Installing Prerequisites:
+
+#### Ubuntu/Debian:
+```bash
+sudo apt-get install golang-go autotools-dev autoconf automake pkg-config build-essential
+# Optional: sudo apt-get install libsystemd-dev libsqlite3-dev
+```
+
+#### RHEL/CentOS/Fedora:
+```bash
+sudo yum install golang autoconf automake pkgconfig gcc
+# OR for newer systems:
+sudo dnf install golang autoconf automake pkgconfig gcc
+# Optional: sudo dnf install systemd-devel sqlite-devel
+```
+
+#### Alpine Linux:
+```bash
+sudo apk add go autoconf automake pkgconfig gcc musl-dev
+# Optional: sudo apk add systemd-dev sqlite-dev
+```
+
+#### Arch Linux:
+```bash
+sudo pacman -S go autoconf automake pkgconfig gcc
+# Optional: sudo pacman -S systemd sqlite
+```
+
+## Building from Source
+
+### 1. Generate Build System (if building from git):
+```bash
+./autogen.sh
+```
+
+### 2. Configure Build:
+```bash
+./configure [OPTIONS]
+```
+
+Common configuration options:
+- `--prefix=/usr/local` - Installation prefix (default: /usr/local)
+- `--with-systemd` - Enable systemd service file installation
+- `--enable-debug` - Build with debug symbols
+- `--with-config-dir=DIR` - Configuration directory
+- `--with-data-dir=DIR` - Data storage directory  
+- `--with-log-dir=DIR` - Log directory
+
+### 3. Build:
+```bash
+make
+```
+
+### 4. Test (optional):
+```bash
+make check
+```
+
+### 5. Install:
+```bash
+sudo make install
+```
+
+## Quick Start Examples
+
+### Standard Installation:
+```bash
+./autogen.sh
+./configure --prefix=/usr --with-systemd
+make
+sudo make install
+```
+
+### Development Build:
+```bash
+./autogen.sh  
+./configure --enable-debug --prefix=$HOME/local
+make
+make install
+```
+
+### Cross-Compilation (ARM64):
+```bash
+./autogen.sh
+./configure GOOS=linux GOARCH=arm64
+make
+```
+
+### Custom Directories:
+```bash
+./configure \
+  --prefix=/opt/sqlite-otel \
+  --with-config-dir=/etc/sqlite-otel \
+  --with-data-dir=/var/lib/sqlite-otel \
+  --with-log-dir=/var/log/sqlite-otel
+```
+
+## Configuration
+
+After installation, the binary will be installed to `$PREFIX/bin/sqlite-otel-collector`.
+
+### Default Locations:
+- Binary: `/usr/local/bin/sqlite-otel-collector`
+- Config: `/usr/local/etc/sqlite-otel/` 
+- Data: `/usr/local/var/lib/sqlite-otel/`
+- Logs: `/usr/local/var/log/`
+- Service: `/lib/systemd/system/sqlite-otel-collector.service` (if systemd enabled)
+
+### Systemd Service (if enabled):
+```bash
+sudo systemctl enable sqlite-otel-collector
+sudo systemctl start sqlite-otel-collector
+```
+
+## Advanced Build Options
+
+### Building All Architectures:
+```bash
+make build-all-local
+```
+This creates binaries for multiple platforms in the current directory.
+
+### Distribution Package Preparation:
+```bash
+make dist
+```
+Creates a source tarball suitable for packaging.
+
+### Cleaning:
+```bash
+make clean          # Remove built files
+make distclean      # Remove all generated files
+```
+
+## Troubleshooting
+
+### Go Version Too Old:
+If you get "Go 1.21 or later is required", update Go:
+```bash
+# Remove old version
+sudo rm -rf /usr/local/go
+
+# Download and install latest
+wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+
+# Add to PATH
+export PATH=$PATH:/usr/local/go/bin
+```
+
+### Missing autotools:
+```bash
+# Ubuntu/Debian
+sudo apt-get install autotools-dev autoconf automake
+
+# RHEL/CentOS
+sudo yum groupinstall "Development Tools"
+
+# Alpine
+sudo apk add autoconf automake libtool
+```
+
+### CGO Build Issues:
+Make sure you have a C compiler and appropriate development headers:
+```bash
+# Ubuntu/Debian  
+sudo apt-get install build-essential
+
+# RHEL/CentOS
+sudo yum groupinstall "Development Tools"
+```
+
+### Cross-Compilation Issues:
+For cross-compilation, ensure target toolchain is available:
+```bash
+# For ARM64 on x86_64
+sudo apt-get install gcc-aarch64-linux-gnu
+export CC=aarch64-linux-gnu-gcc
+./configure GOOS=linux GOARCH=arm64
+```
+
+## Uninstallation
+
+```bash
+sudo make uninstall
+```
+
+If systemd service was installed, also run:
+```bash
+sudo systemctl stop sqlite-otel-collector
+sudo systemctl disable sqlite-otel-collector
+```
+
+## Support
+
+For build issues, please check:
+1. All prerequisites are installed
+2. Go version is 1.21 or later: `go version`
+3. autotools are available: `autoconf --version`
+
+For additional help, visit: https://github.com/RedShiftVelocity/sqlite-otel/issues
