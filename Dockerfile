@@ -9,7 +9,8 @@ FROM golang:1.21-alpine AS builder
 # Install build dependencies
 # - make: Required for Makefile-based build process
 # - git: Required for Go module downloads and version info
-RUN apk add --no-cache make git
+# - gcc, musl-dev: Required for CGO (go-sqlite3 needs CGO)
+RUN apk add --no-cache make git gcc musl-dev
 
 # Set working directory for build
 WORKDIR /build
@@ -22,8 +23,9 @@ RUN go mod download
 # Copy all source code
 COPY . .
 
-# Build the optimized binary using project Makefile
-# This typically includes: go build -o sqlite-otel-collector .
+# Build the optimized binary with CGO enabled for go-sqlite3
+# Set CGO_ENABLED=1 explicitly for sqlite3 support
+ENV CGO_ENABLED=1
 RUN make build
 
 # ================================
