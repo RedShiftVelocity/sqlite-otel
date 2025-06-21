@@ -72,8 +72,8 @@ jobs:
             set -e
             make build
             # Verify binary was created
-            if [ ! -f "sqlite-otel-collector" ]; then
-              echo "Error: Binary sqlite-otel-collector not found after build"
+            if [ ! -f "sqlite-otel" ]; then
+              echo "Error: Binary sqlite-otel not found after build"
               exit 1
             fi
       - run:
@@ -86,7 +86,8 @@ jobs:
           command: |
             set -e
             mkdir -p binaries
-            cp sqlite-otel-collector* binaries/
+            cp sqlite-otel binaries/
+            cp dist/* binaries/ 2>/dev/null || true
       - store_artifacts:
           path: binaries/
           destination: binaries
@@ -103,7 +104,7 @@ jobs:
           at: .
       - run:
           name: Create release archives
-          command: ./scripts/create-release-archives.sh
+          command: make release
       - store_artifacts:
           path: releases/
           destination: releases

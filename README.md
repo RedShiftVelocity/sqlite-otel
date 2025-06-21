@@ -7,19 +7,183 @@ This project involves creating a standalone Go binary that functions as an OpenT
 - Go 1.21 or higher
 - SQLite 3.24.0 or higher (for ON CONFLICT clause support)
 
+## Quick Start
+
+### Building
+```bash
+# Build for current platform
+make build
+
+# Build for all platforms (Linux, macOS, Windows)
+make build-all
+
+# Build only Linux binaries
+make build-linux
+
+# Development build with race detector
+make dev
+```
+
+### Testing
+```bash
+# Run tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# Format code
+make fmt
+
+# Verify dependencies
+make verify
+```
+
+### Running
+```bash
+# Run with default settings
+./sqlite-otel
+
+# Run with custom port and database
+./sqlite-otel -port 4318 -db-path ./my-data.db
+
+# Show version information
+./sqlite-otel -version
+
+# Show help
+./sqlite-otel -h
+```
+
+### Installation
+```bash
+# Install to /usr/local/bin (requires sudo)
+sudo make install
+
+# Uninstall
+sudo make uninstall
+```
+
+### Release Management
+```bash
+# Create release archives for all platforms
+make release
+
+# Clean build artifacts
+make clean
+
+# Show version information
+make version
+
+# Show all available commands
+make help
+```
+
+## Makefile Commands
+
+The project includes a comprehensive Makefile with the following targets:
+
+| Command | Description | Example Output |
+|---------|-------------|----------------|
+| `make help` | Display all available commands | Lists all make targets with descriptions |
+| `make version` | Show version information | `Version: v0.7.86`<br>`Git Commit: 1fe7bdb`<br>`Build Time: 2025-06-21_04:51:28` |
+| `make build` | Build for current platform | `Building sqlite-otel v0.7.86 for current platform...` |
+| `make build-all` | Build for all platforms | Creates binaries in `dist/` for Linux, macOS, Windows |
+| `make build-linux` | Build Linux binaries only | Creates `sqlite-otel-linux-{amd64,arm64,arm}` in `dist/` |
+| `make test` | Run tests with race detection | `ok github.com/RedShiftVelocity/sqlite-otel/logging 8.872s coverage: 58.1%` |
+| `make test-coverage` | Generate HTML coverage report | Creates `coverage.html` |
+| `make clean` | Remove build artifacts | Cleans `dist/`, `releases/`, coverage files |
+| `make fmt` | Format Go code | Formats all `.go` files |
+| `make lint` | Run golangci-lint | Requires golangci-lint installation |
+| `make tidy` | Tidy Go modules | `go mod tidy` |
+| `make verify` | Verify dependencies | `all modules verified` |
+| `make release` | Create versioned archives | Creates `.tar.gz` files in `releases/` |
+| `make dev` | Development build with race detector | Build with `-race` flag |
+| `make run-example` | Run with example flags | Starts server on random port with test DB |
+| `make install` | Install to `/usr/local/bin` | Requires `sudo` for system installation |
+| `make uninstall` | Remove from `/usr/local/bin` | Requires `sudo` for system removal |
+
+### Build Outputs
+
+#### Cross-Platform Builds
+```bash
+$ make build-all
+Building for all platforms...
+Building sqlite-otel-linux-amd64...
+Building sqlite-otel-linux-arm64...
+Building sqlite-otel-linux-arm...
+Building sqlite-otel-darwin-amd64...
+Building sqlite-otel-darwin-arm64...
+Building sqlite-otel-windows-amd64.exe...
+Build complete. Binaries in dist/
+
+$ ls -la dist/
+-rwxrwxr-x sqlite-otel-darwin-amd64      5.5MB
+-rwxrwxr-x sqlite-otel-darwin-arm64      5.3MB  
+-rwxrwxr-x sqlite-otel-linux-amd64       6.8MB
+-rwxrwxr-x sqlite-otel-linux-arm         5.2MB
+-rwxrwxr-x sqlite-otel-linux-arm64       5.1MB
+-rwxrwxr-x sqlite-otel-windows-amd64.exe 5.5MB
+```
+
+#### Release Archives
+```bash
+$ make release
+Creating release archives...
+Created releases/sqlite-otel-darwin-amd64-v0.7.86.tar.gz
+Created releases/sqlite-otel-darwin-arm64-v0.7.86.tar.gz
+Created releases/sqlite-otel-linux-amd64-v0.7.86.tar.gz
+Created releases/sqlite-otel-linux-arm-v0.7.86.tar.gz
+Created releases/sqlite-otel-linux-arm64-v0.7.86.tar.gz
+Created releases/sqlite-otel-windows-amd64.exe-v0.7.86.tar.gz
+```
+
+#### Version Information
+```bash
+$ make version
+Version: v0.7.86
+Git Commit: 1fe7bdb
+Build Time: 2025-06-21_04:51:28
+
+$ ./sqlite-otel -version
+sqlite-otel-collector v0.7.86
+Build Time: 2025-06-21_04:51:28
+Git Commit: 1fe7bdb
+```
+
+## Semantic Versioning
+
+The project uses semantic versioning with automatic revision numbers:
+
+- **Format**: `v{major}.{minor}.{commit_count}`
+- **Development**: `v0.7.86` (86 total commits)
+- **Tagged releases**: `v1.0.0` (uses exact git tag)
+- **Configurable**: Update `MAJOR_MINOR` in Makefile to change version
+
 ## Core Architecture
 The Go binary will implement a lightweight OTEL collector that listens on an ephemeral port for incoming telemetry data (traces, metrics, and logs) in OpenTelemetry Protocol (OTLP) format. Upon receiving data, it will immediately persist the information to a local SQLite database using an embedded database approach. This eliminates external dependencies and simplifies deployment while maintaining data durability.
 
 The service will automatically bind to an available ephemeral port (typically in the 32768-65535 range) to avoid port conflicts, making it suitable for multi-instance deployments or development environments. The actual port will be logged at startup for client configuration.
 
 ## Command Line Interface
-The binary accepts three optional command-line arguments with intelligent defaults:
 
-**SQLite File Location (--db-path)**: Specifies the path for the SQLite database file. Default behavior will create a database file named `otel-collector.db` in the current working directory. For service deployment, this might default to `/var/lib/otel-collector/data.db` to follow Linux filesystem hierarchy standards.
+The binary accepts the following command-line arguments:
 
-**Log File Location (--log-file)**: Defines where the collector service writes its operational logs. The default will write to stdout for container/systemd compatibility, but can be overridden to write to `/var/log/otel-collector.log` for traditional service deployments.
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-port` | Port to listen on | `4318` (OTLP/HTTP standard) |
+| `-db-path` | Path to SQLite database file | User mode: `~/.local/share/sqlite-otel/otel-collector.db`<br>Service mode: `/var/lib/sqlite-otel-collector/otel-collector.db` |
+| `-log-file` | Path to log file for execution metadata | User mode: `~/.local/state/sqlite-otel/execution.log`<br>Service mode: `/var/log/sqlite-otel-collector.log` |
+| `-log-max-size` | Maximum log file size in MB before rotation | `100` |
+| `-log-max-backups` | Maximum number of old log files to keep | `7` |
+| `-log-max-age` | Maximum number of days to keep old log files | `30` |
+| `-log-compress` | Compress rotated log files | `true` |
+| `-version` | Show version information | - |
 
-**Logging Mode (--log-level)**: Controls the verbosity of operational logging with options like debug, info, warn, error. Default will be "info" level, providing sufficient operational visibility without overwhelming log output.
+### Path Detection
+
+The application automatically detects whether it's running in:
+- **User mode**: Uses XDG Base Directory specification (`~/.local/share`, `~/.local/state`)
+- **Service mode**: Uses system directories (`/var/lib`, `/var/log`) when running under systemd
 
 ## Service Integration
 The binary will include built-in service management capabilities for Linux systems. It will generate systemd service files and provide installation commands, enabling easy deployment as a system daemon. The service will handle graceful shutdown signals, ensuring data integrity during system restarts or maintenance.

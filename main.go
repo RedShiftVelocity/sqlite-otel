@@ -18,6 +18,13 @@ import (
 	"github.com/RedShiftVelocity/sqlite-otel/logging"
 )
 
+// Build-time variables (set by ldflags)
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 func main() {
 	// Define command-line flags
 	port := flag.Int("port", 4318, "Port to listen on (default: 4318, OTLP/HTTP standard)")
@@ -36,7 +43,17 @@ func main() {
 	logMaxAge := flag.Int("log-max-age", 30, "Maximum number of days to keep old log files (default: 30)")
 	logCompress := flag.Bool("log-compress", true, "Compress rotated log files (default: true)")
 	
+	showVersion := flag.Bool("version", false, "Show version information")
+	
 	flag.Parse()
+	
+	// Handle version flag
+	if *showVersion {
+		fmt.Printf("sqlite-otel-collector %s\n", Version)
+		fmt.Printf("Build Time: %s\n", BuildTime)
+		fmt.Printf("Git Commit: %s\n", GitCommit)
+		os.Exit(0)
+	}
 
 	// Initialize logging with rotation configuration
 	rotationConfig := &logging.RotationConfig{
