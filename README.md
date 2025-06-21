@@ -40,6 +40,8 @@ make verify
 ```
 
 ### Running
+
+#### Binary Usage
 ```bash
 # Run with default settings
 ./sqlite-otel
@@ -52,6 +54,33 @@ make verify
 
 # Show help
 ./sqlite-otel -h
+```
+
+#### Docker Usage
+```bash
+# Pull latest development image
+docker pull ghcr.io/redshiftvelocity/sqlite-otel:latest
+
+# Run with default settings
+docker run -d --name sqlite-otel -p 4318:4318 \
+  ghcr.io/redshiftvelocity/sqlite-otel:latest
+
+# Run with custom configuration
+docker run -d --name sqlite-otel -p 4318:4318 \
+  -v $(pwd)/data:/var/lib/sqlite-otel-collector \
+  ghcr.io/redshiftvelocity/sqlite-otel:latest
+
+# Run development version
+docker run -d --name sqlite-otel-dev -p 4318:4318 \
+  ghcr.io/redshiftvelocity/sqlite-otel:v0.7.95-dev
+
+# Check container logs
+docker logs sqlite-otel
+
+# Test the service
+curl -X POST http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d '{"resourceSpans": []}'
 ```
 
 ### Installation
