@@ -468,6 +468,8 @@ jobs:
       image: ubuntu-2204:2024.01.1
     resource_class: medium
     working_directory: ~/repo
+    # Add timeout to prevent hanging
+    no_output_timeout: 15m
     steps:
       - checkout
       - attach_workspace:
@@ -561,9 +563,10 @@ jobs:
             
             echo "Tag arguments: $TAG_ARGS"
             
-            # Build and push multi-platform image
+            # Build and push single-platform image (for debugging)
+            # TODO: Revert to multi-platform after debugging
             docker buildx build \
-              --platform linux/amd64,linux/arm64 \
+              --platform linux/amd64 \
               --push \
               $TAG_ARGS \
               --label "org.opencontainers.image.source=https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" \
