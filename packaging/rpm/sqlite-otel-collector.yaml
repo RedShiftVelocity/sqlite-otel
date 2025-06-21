@@ -1,0 +1,17 @@
+# SQLite OpenTelemetry Collector Configuration
+# This is the default configuration file for sqlite-otel-collector
+
+# HTTP server configuration
+server:
+  host: "0.0.0.0"
+  port: 4318
+
+# SQLite database configuration  
+database:
+  path: "/var/lib/sqlite-otel-collector/telemetry.db"
+
+# Logging configuration
+logging:
+  level: "info"
+  # Log to systemd journal (recommended)
+  output: "journal"

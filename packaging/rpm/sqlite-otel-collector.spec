@@ -14,8 +14,10 @@ Summary:        OpenTelemetry collector with SQLite storage
 License:        MIT
 URL:            https://github.com/RedShiftVelocity/sqlite-otel
 Source0:        %{name}-%{version}.tar.gz
+Source1:        sqlite-otel-collector.sysusers
+Source2:        sqlite-otel-collector.yaml
 
-# BuildRequires:  golang >= 1.21  # Not needed for pre-built binary packaging
+BuildRequires:  golang >= 1.21
 BuildRequires:  systemd-rpm-macros
 Requires:       systemd
 
@@ -28,35 +30,25 @@ and logs via OTLP/HTTP protocol.
 %autosetup
 
 %build
-# Binary should already be built - just verify it exists
-test -f sqlite-otel || (echo "Binary sqlite-otel not found. Run 'make build' first." && exit 1)
+export GOPROXY=direct
+export GOSUMDB=off
+go build -trimpath -ldflags "-s -w -X main.Version=v%{version} -X main.BuildTime=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')" -o sqlite-otel .
 
 %install
 # Install binary (rename from sqlite-otel to sqlite-otel-collector)
-install -D -m 0755 sqlite-otel %{buildroot}/usr/bin/%{name}
+install -D -m 0755 sqlite-otel %{buildroot}%{_bindir}/%{name}
 
 # Install systemd service file  
 install -D -m 0644 packaging/systemd/%{name}.service %{buildroot}%{_unitdir}/%{name}.service
 
 # Create directories
-install -d -m 0755 %{buildroot}/var/lib/%{name}
-install -d -m 0755 %{buildroot}/var/log
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/%{name}
 
-# No default config file for now
+# Install sysusers file for user/group creation
+install -D -m 0644 %{SOURCE1} %{buildroot}%{_sysusersdir}/%{name}.conf
 
-%pre
-# Create user and group with error handling
-getent group sqlite-otel >/dev/null || groupadd -r sqlite-otel || {
-    echo "Failed to create group sqlite-otel" >&2
-    exit 1
-}
-getent passwd sqlite-otel >/dev/null || \
-    useradd -r -g sqlite-otel -d /var/lib/%{name} -s /sbin/nologin \
-    -c "SQLite OTEL Collector" sqlite-otel || {
-    echo "Failed to create user sqlite-otel" >&2
-    exit 1
-}
-exit 0
+# Install default configuration file
+install -D -m 0640 %{SOURCE2} %{buildroot}%{_sysconfdir}/%{name}/config.yaml
 
 %post
 %systemd_post %{name}.service
@@ -68,9 +60,13 @@ exit 0
 %systemd_postun %{name}.service
 
 %files
-/usr/bin/%{name}
+%license LICENSE
+%{_bindir}/%{name}
 %{_unitdir}/%{name}.service
-%dir %attr(0755, sqlite-otel, sqlite-otel) /var/lib/%{name}
+%{_sysusersdir}/%{name}.conf
+%dir %{_sysconfdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{name}/config.yaml
+%dir %attr(0755, sqlite-otel, sqlite-otel) %{_sharedstatedir}/%{name}
 
 %changelog
 * Thu Jun 20 2024 Manish Sinha <manishsinha.tech@gmail.com> - 0.7.0-1

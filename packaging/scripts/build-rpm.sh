@@ -45,6 +45,7 @@ case "${ID}" in
         echo "==> Applying Debian/Ubuntu compatibility macros."
         DEFINES+=(--define "_unitdir /usr/lib/systemd/system")
         DEFINES+=(--define "_presetdir /usr/lib/systemd/system-preset")
+        DEFINES+=(--define "_sysusersdir /usr/lib/sysusers.d")
         DEFINES+=(--define "systemd_post : ")
         DEFINES+=(--define "systemd_preun : ")
         DEFINES+=(--define "systemd_postun : ")
@@ -76,20 +77,15 @@ echo "Creating source tarball..."
 TEMP_DIR=$(mktemp -d)
 mkdir -p "$TEMP_DIR/$PACKAGE_NAME-$VERSION"
 
-# Verify binary exists before proceeding
-if [ ! -f "sqlite-otel" ]; then
-    echo "ERROR: Binary sqlite-otel not found in source directory"
-    echo "Please run 'make build' before packaging"
-    exit 1
-fi
+# No binary verification needed - we build from source
 
 # Copy source files
 cp -r . "$TEMP_DIR/$PACKAGE_NAME-$VERSION/"
 cd "$TEMP_DIR/$PACKAGE_NAME-$VERSION"
 
-# Clean unnecessary files but preserve the binary
-rm -rf .git .gitignore build/ dist/ *.db *.log
-# Keep the sqlite-otel binary - it's needed for packaging
+# Clean unnecessary files for source-based packaging
+rm -rf .git .gitignore build/ dist/ *.db *.log sqlite-otel
+# Remove pre-built binaries since we're building from source
 
 # Create tarball
 cd "$TEMP_DIR"
@@ -98,6 +94,10 @@ rm -rf "$TEMP_DIR"
 
 # Copy spec file from original directory
 cp "$ORIGINAL_DIR/packaging/rpm/$PACKAGE_NAME.spec" "$SPECS_DIR/"
+
+# Copy additional source files
+cp "$ORIGINAL_DIR/packaging/rpm/$PACKAGE_NAME.sysusers" "$SOURCES_DIR/"
+cp "$ORIGINAL_DIR/packaging/rpm/$PACKAGE_NAME.yaml" "$SOURCES_DIR/"
 
 # Update version in spec file
 sed -i "s/Version:.*$/Version:        $VERSION/" "$SPECS_DIR/$PACKAGE_NAME.spec"
