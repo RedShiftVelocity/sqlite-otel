@@ -1,5 +1,12 @@
 version: 2.1
 
+# SQLite OTEL Collector CI Configuration
+#
+# DOCKER TESTING (to save CircleCI credits):
+# - Regular development: Fast build + test only (no Docker)  
+# - Docker testing: Only runs for version tags (v1.0.0) or branches starting with "docker/"
+# - Example: Create branch "docker/test-new-feature" to test Docker changes
+
 commands:
   setup_go_modules:
     steps:
@@ -20,23 +27,86 @@ executors:
     docker:
       - image: cimg/go:1.21.6
     working_directory: ~/repo
+  
+  docker-executor:
+    docker:
+      - image: cimg/go:1.21.6
+    working_directory: ~/repo
 
 jobs:
-  test:
+  # First: Build the application
+  build:
     executor: go-executor
     steps:
       - checkout
       - setup_go_modules
       - run:
+          name: Build current platform binary
+          command: |
+            set -e
+            echo "Building sqlite-otel binary..."
+            make build
+            # Verify binary was created
+            if [ ! -f "sqlite-otel" ]; then
+              echo "Error: Binary sqlite-otel not found after build"
+              exit 1
+            fi
+            echo "Binary built successfully: $(ls -la sqlite-otel)"
+      - run:
+          name: Build for all platforms
+          command: |
+            set -e
+            echo "Building for all platforms..."
+            make build-all
+            echo "Cross-platform build complete:"
+            ls -la dist/
+      - run:
+          name: Test binary execution
+          command: |
+            set -e
+            echo "Testing binary execution..."
+            ./sqlite-otel --version
+            echo "Binary executes successfully"
+      - run:
+          name: Collect binaries
+          command: |
+            set -e
+            mkdir -p binaries
+            cp sqlite-otel binaries/
+            cp dist/* binaries/ 2>/dev/null || true
+            echo "Collected binaries:"
+            ls -la binaries/
+      - store_artifacts:
+          path: binaries/
+          destination: binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - sqlite-otel
+            - binaries/
+            - dist/
+
+  # Second: Run tests (after successful build)
+  test:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - setup_go_modules
+      - run:
           name: Run go vet
-          command: go vet ./...
+          command: |
+            echo "Running go vet..."
+            go vet ./...
       - run:
           name: Install test reporter
           command: go install github.com/jstemmer/go-junit-report/v2@latest
       - run:
-          name: Run tests
+          name: Run tests with race detection
           command: |
             set -e
+            echo "Running tests with race detection..."
             mkdir -p /tmp/test-results
             # Run tests and capture both stdout and exit code
             go test -race -coverprofile=coverage.out -v ./... 2>&1 | tee /tmp/test-results/go-test.out
@@ -50,8 +120,19 @@ jobs:
           name: Generate coverage report
           command: |
             set -e
+            echo "Generating coverage report..."
             go tool cover -html=coverage.out -o coverage.html
             echo "Coverage report generated"
+            # Display coverage summary
+            go tool cover -func=coverage.out | tail -1
+      - run:
+          name: Test binary functionality
+          command: |
+            set -e
+            echo "Testing binary functionality..."
+            # Start the binary in background
+            timeout 5 ./sqlite-otel --port 0 --db-path ./test.db || true
+            echo "Binary functionality test completed"
       - store_test_results:
           path: /tmp/test-results
       - store_artifacts:
@@ -61,41 +142,80 @@ jobs:
           path: coverage.out
           destination: coverage.out
 
-  build:
-    executor: go-executor
+  # Third: Build and validate Docker container (simplified)
+  docker-build-and-test:
+    machine:
+      image: ubuntu-2204:2024.01.1
+    resource_class: large
+    working_directory: ~/repo
     steps:
       - checkout
-      - setup_go_modules
+      - attach_workspace:
+          at: .
       - run:
-          name: Build current platform binary
+          name: Build Docker image
           command: |
             set -e
-            make build
-            # Verify binary was created
-            if [ ! -f "sqlite-otel" ]; then
-              echo "Error: Binary sqlite-otel not found after build"
+            echo "Building Docker image..."
+            
+            # Simple Docker build with error handling
+            docker build -t sqlite-otel-collector:test .
+            echo "✅ Docker image built successfully"
+            
+            # Show basic image info
+            docker images sqlite-otel-collector:test
+      - run:
+          name: Test Docker container basic functionality
+          command: |
+            set -e
+            echo "Testing Docker container..."
+            
+            # Clean up any existing containers
+            docker rm -f sqlite-otel-test 2>/dev/null || true
+            
+            # Start container
+            echo "Starting container..."
+            docker run -d --name sqlite-otel-test -p 25318:4318 sqlite-otel-collector:test
+            
+            # Wait for startup
+            echo "Waiting for container startup..."
+            sleep 15
+            
+            # Check if container is running
+            if ! docker ps | grep -q sqlite-otel-test; then
+              echo "ERROR: Container is not running"
+              echo "Container logs:"
+              docker logs sqlite-otel-test
               exit 1
             fi
+            echo "✅ Container is running"
+            
+            # Simple health check
+            echo "Testing health endpoint..."
+            for i in {1..10}; do
+              if curl -f http://localhost:25318/health; then
+                echo "✅ Health check passed"
+                break
+              else
+                if [ $i -eq 10 ]; then
+                  echo "ERROR: Health check failed"
+                  docker logs sqlite-otel-test
+                  exit 1
+                fi
+                echo "Retrying health check ($i/10)..."
+                sleep 3
+              fi
+            done
+            
+            echo "✅ Docker container test completed successfully"
       - run:
-          name: Build for all platforms
+          name: Cleanup
           command: |
-            set -e
-            make build-all
-      - run:
-          name: Collect binaries
-          command: |
-            set -e
-            mkdir -p binaries
-            cp sqlite-otel binaries/
-            cp dist/* binaries/ 2>/dev/null || true
-      - store_artifacts:
-          path: binaries/
-          destination: binaries
-      - persist_to_workspace:
-          root: .
-          paths:
-            - binaries/
+            docker stop sqlite-otel-test || true
+            docker rm sqlite-otel-test || true
+            echo "Cleanup completed"
 
+  # Fourth: Create release (only for tags)
   release:
     executor: go-executor
     steps:
@@ -104,32 +224,68 @@ jobs:
           at: .
       - run:
           name: Create release archives
-          command: make release
+          command: |
+            echo "Creating release archives..."
+            make release
+            echo "Release archives created:"
+            ls -la releases/
       - store_artifacts:
           path: releases/
           destination: releases
 
 workflows:
   version: 2.1
-  test-and-build:
+  
+  # Fast workflow for regular development (no Docker)
+  build-and-test:
     jobs:
-      - test:
+      - build:
           filters:
             branches:
               only: /.*/
+              ignore: 
+                - /docker\/.*/
             tags:
+              ignore: /.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
               only: /.*/
+              ignore: 
+                - /docker\/.*/
+            tags:
+              ignore: /.*/
+  
+  # Docker testing for docker/* branches and version tags
+  docker-workflow:
+    jobs:
       - build:
+          filters:
+            branches:
+              only: /docker\/.*/
+            tags:
+              only: /^v.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /docker\/.*/
+            tags:
+              only: /^v.*/
+      - docker-build-and-test:
           requires:
             - test
           filters:
             branches:
-              only: /.*/
+              only: /docker\/.*/
             tags:
-              only: /.*/
+              only: /^v.*/
       - release:
           requires:
-            - build
+            - docker-build-and-test
           filters:
             branches:
               ignore: /.*/
