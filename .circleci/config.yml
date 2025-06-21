@@ -142,42 +142,78 @@ jobs:
           path: coverage.out
           destination: coverage.out
 
-  # Third: Build and validate Docker container (minimal test)
+  # Third: Build and validate Docker container (simplified)
   docker-build-and-test:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: medium
+    resource_class: large
     working_directory: ~/repo
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Docker environment check
-          command: |
-            echo "Checking Docker environment..."
-            docker --version
-            docker info
-            echo "Available space:"
-            df -h
-            echo "Files in current directory:"
-            ls -la
-      - run:
-          name: Build Docker image only
+          name: Build Docker image
           command: |
             set -e
             echo "Building Docker image..."
             
-            # Build with verbose output for debugging
-            docker build -t sqlite-otel-collector:test . --no-cache --progress=plain
-            
+            # Simple Docker build with error handling
+            docker build -t sqlite-otel-collector:test .
             echo "✅ Docker image built successfully"
-            docker images sqlite-otel-collector:test
             
-            # Test that image can run basic command
-            echo "Testing basic container execution..."
-            docker run --rm sqlite-otel-collector:test --version
-            echo "✅ Container basic execution test passed"
+            # Show basic image info
+            docker images sqlite-otel-collector:test
+      - run:
+          name: Test Docker container basic functionality
+          command: |
+            set -e
+            echo "Testing Docker container..."
+            
+            # Clean up any existing containers
+            docker rm -f sqlite-otel-test 2>/dev/null || true
+            
+            # Start container
+            echo "Starting container..."
+            docker run -d --name sqlite-otel-test -p 25318:4318 sqlite-otel-collector:test
+            
+            # Wait for startup
+            echo "Waiting for container startup..."
+            sleep 15
+            
+            # Check if container is running
+            if ! docker ps | grep -q sqlite-otel-test; then
+              echo "ERROR: Container is not running"
+              echo "Container logs:"
+              docker logs sqlite-otel-test
+              exit 1
+            fi
+            echo "✅ Container is running"
+            
+            # Simple health check
+            echo "Testing health endpoint..."
+            for i in {1..10}; do
+              if curl -f http://localhost:25318/health; then
+                echo "✅ Health check passed"
+                break
+              else
+                if [ $i -eq 10 ]; then
+                  echo "ERROR: Health check failed"
+                  docker logs sqlite-otel-test
+                  exit 1
+                fi
+                echo "Retrying health check ($i/10)..."
+                sleep 3
+              fi
+            done
+            
+            echo "✅ Docker container test completed successfully"
+      - run:
+          name: Cleanup
+          command: |
+            docker stop sqlite-otel-test || true
+            docker rm sqlite-otel-test || true
+            echo "Cleanup completed"
 
   # Fourth: Create release (only for tags)
   release:
