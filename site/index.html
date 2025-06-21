@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite OpenTelemetry Collector - Lightweight Telemetry Storage</title>
+    <meta name="description" content="A lightweight, embedded OpenTelemetry collector with SQLite storage. Perfect for edge deployments, development, and resource-constrained environments.">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="SQLite OpenTelemetry Collector">
+    <meta property="og:description" content="Lightweight telemetry collection with embedded SQLite storage">
+    <meta property="og:image" content="https://sqlite-otel.io/assets/og-image.png">
+    <meta property="og:url" content="https://sqlite-otel.io">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <img src="assets/logo.svg" alt="SQLite OTEL" class="nav-logo">
+                <span class="nav-title">SQLite OpenTelemetry Collector</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#quickstart">Quick Start</a></li>
+                <li><a href="#usecases">Use Cases</a></li>
+                <li><a href="./docs/">Documentation</a></li>
+                <li><a href="https://github.com/RedShiftVelocity/sqlite-otel" class="nav-github">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 0C4.477 0 0 4.477 0 10c0 4.42 2.865 8.17 6.84 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.607.069-.607 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.349-1.086.635-1.337-2.22-.252-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0110 4.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C17.138 18.165 20 14.418 20 10c0-5.523-4.477-10-10-10z"/>
+                    </svg>
+                </a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Lightweight Telemetry Collection<br>with Embedded Storage</h1>
+            <p class="hero-subtitle">
+                A single-binary OpenTelemetry collector that stores traces, metrics, and logs 
+                directly in SQLite. Perfect for edge deployments, development environments, 
+                and resource-constrained systems.
+            </p>
+            <div class="hero-actions">
+                <a href="#quickstart" class="btn btn-primary">Get Started</a>
+                <a href="./docs/" class="btn btn-secondary">Documentation</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-value">~10MB</span>
+                    <span class="stat-label">Binary Size</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">&lt;128MB</span>
+                    <span class="stat-label">Memory Usage</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">Zero</span>
+                    <span class="stat-label">Dependencies</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Why SQLite OpenTelemetry Collector?</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📦</div>
+                    <h3>Single Binary</h3>
+                    <p>No external dependencies. Just download and run. Embedded SQLite means no database setup required.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3>Lightweight</h3>
+                    <p>Minimal resource footprint. Runs comfortably on edge devices, containers, and resource-constrained environments.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Secure by Default</h3>
+                    <p>Runs as non-root with comprehensive systemd hardening. Your telemetry data stays local and secure.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Full OTLP Support</h3>
+                    <p>Accepts traces, metrics, and logs via OTLP/HTTP protocol. Compatible with all OpenTelemetry SDKs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Log Rotation</h3>
+                    <p>Built-in log rotation with compression. Manage disk usage automatically with configurable retention policies.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛠️</div>
+                    <h3>Easy Deployment</h3>
+                    <p>Native packages for all major platforms. Systemd service, Docker images, and Kubernetes manifests included.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section id="quickstart" class="quickstart">
+        <div class="container">
+            <h2 class="section-title">Quick Start</h2>
+            <p class="section-subtitle">Get up and running in under 5 minutes</p>
+            
+            <div class="quickstart-tabs">
+                <button class="tab-button active" onclick="showTab('docker')">Docker</button>
+                <button class="tab-button" onclick="showTab('binary')">Binary</button>
+                <button class="tab-button" onclick="showTab('package')">Package Manager</button>
+            </div>
+
+            <div id="docker" class="tab-content active">
+                <pre><code># Run with Docker
+docker run -d \
+  --name sqlite-otel \
+  -p 4318:4318 \
+  -v sqlite-otel-data:/var/lib/sqlite-otel-collector \
+  redshiftvelocity/sqlite-otel:latest
+
+# Send test data
+curl -X POST http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d @examples/trace.json</code></pre>
+            </div>
+
+            <div id="binary" class="tab-content">
+                <pre><code># Download latest release
+curl -LO https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-collector-linux-amd64.tar.gz
+tar xzf sqlite-otel-collector-linux-amd64.tar.gz
+
+# Run collector
+./sqlite-otel-collector
+
+# Collector is now listening on http://localhost:4318</code></pre>
+            </div>
+
+            <div id="package" class="tab-content">
+                <pre><code># Ubuntu/Debian
+curl -s https://packages.sqlite-otel.io/setup.deb.sh | sudo bash
+sudo apt-get install sqlite-otel-collector
+
+# RHEL/CentOS
+curl -s https://packages.sqlite-otel.io/setup.rpm.sh | sudo bash
+sudo yum install sqlite-otel-collector
+
+# macOS
+brew tap redshiftvelocity/sqlite-otel
+brew install sqlite-otel-collector</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section id="usecases" class="usecases">
+        <div class="container">
+            <h2 class="section-title">Perfect For</h2>
+            <div class="usecase-grid">
+                <div class="usecase-card">
+                    <h3>🌐 Edge Computing</h3>
+                    <p>Collect telemetry at edge locations with intermittent connectivity. Data stays local until you're ready to export.</p>
+                </div>
+                <div class="usecase-card">
+                    <h3>💻 Development</h3>
+                    <p>Local telemetry collection without complex infrastructure. See exactly what your application is sending.</p>
+                </div>
+                <div class="usecase-card">
+                    <h3>🔧 Embedded Systems</h3>
+                    <p>Minimal resource footprint makes it perfect for IoT devices and resource-constrained environments.</p>
+                </div>
+                <div class="usecase-card">
+                    <h3>🏢 On-Premises</h3>
+                    <p>Keep sensitive telemetry data within your infrastructure. No cloud dependencies required.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="architecture">
+        <div class="container">
+            <h2 class="section-title">Simple Architecture</h2>
+            <div class="arch-diagram">
+                <div class="arch-flow">
+                    <div class="arch-box">
+                        <h4>Your Applications</h4>
+                        <p>OpenTelemetry SDKs</p>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-box highlight">
+                        <h4>SQLite OpenTelemetry Collector</h4>
+                        <p>OTLP/HTTP on :4318</p>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-box">
+                        <h4>SQLite Database</h4>
+                        <p>Local embedded storage</p>
+                    </div>
+                </div>
+            </div>
+            <p class="arch-description">
+                Applications send telemetry data via OTLP/HTTP to the collector, which immediately 
+                persists it to the embedded SQLite database. Query your data with standard SQL tools 
+                or export it to other systems.
+            </p>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2>Ready to simplify your telemetry collection?</h2>
+            <p>Join developers who are already using SQLite OpenTelemetry Collector in production</p>
+            <div class="cta-actions">
+                <a href="https://github.com/RedShiftVelocity/sqlite-otel/releases" class="btn btn-primary">Download Latest Release</a>
+                <a href="./docs/" class="btn btn-secondary">Read Documentation</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Project</h4>
+                    <ul>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel">GitHub</a></li>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel/releases">Releases</a></li>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel/issues">Issues</a></li>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel/discussions">Discussions</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="./docs/">Getting Started</a></li>
+                        <li><a href="./docs/installation/">Installation</a></li>
+                        <li><a href="./docs/configuration/">Configuration</a></li>
+                        <li><a href="./docs/deployment/">Deployment</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel/blob/main/CONTRIBUTING.md">Contributing</a></li>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a></li>
+                        <li><a href="https://github.com/RedShiftVelocity/sqlite-otel/blob/main/LICENSE">License (MIT)</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 SQLite OpenTelemetry Collector. Open source under the MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="js/main.js"></script>
+</body>
+</html>
