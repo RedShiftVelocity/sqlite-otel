@@ -44,3 +44,7 @@ server_output.log
 
 # Local tools directory
 tools/
+
+# Development/test scripts (keep local only)
+test-commands.sh
+scripts/create-release-archives.sh
