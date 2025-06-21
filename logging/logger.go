@@ -31,10 +31,15 @@ type Logger struct {
 
 // Init initializes the logger with the given log file path
 func Init(logFilePath string) error {
+	return InitWithRotation(logFilePath, nil)
+}
+
+// InitWithRotation initializes the logger with rotation configuration
+func InitWithRotation(logFilePath string, config *RotationConfig) error {
 	var err error
 	initOnce.Do(func() {
 		var newL *Logger
-		newL, err = newLogger(logFilePath)
+		newL, err = newLoggerWithRotation(logFilePath, config)
 		if err == nil {
 			loggerMu.Lock()
 			globalLogger = newL
