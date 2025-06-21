@@ -47,7 +47,7 @@ RUN mkdir -p /var/lib/sqlite-otel-collector && \
     chown -R sqlite-otel:sqlite-otel /var/lib/sqlite-otel-collector
 
 # Copy the compiled binary from build stage
-COPY --from=builder /build/sqlite-otel-collector /usr/bin/sqlite-otel-collector
+COPY --from=builder /build/sqlite-otel /usr/bin/sqlite-otel-collector
 
 # Switch to non-root user for security
 USER sqlite-otel
