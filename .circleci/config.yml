@@ -517,9 +517,25 @@ jobs:
             echo "Image Tag: $IMAGE_TAG"
             echo "Additional Tags: $ADDITIONAL_TAGS"
       - run:
+          name: Debug environment variables
+          command: |
+            echo "=== Environment Debug ==="
+            echo "CIRCLE_PROJECT_USERNAME: $CIRCLE_PROJECT_USERNAME"
+            echo "CIRCLE_PROJECT_REPONAME: $CIRCLE_PROJECT_REPONAME"
+            echo "CIRCLE_BRANCH: $CIRCLE_BRANCH"
+            echo "CIRCLE_TAG: $CIRCLE_TAG"
+            echo "GITHUB_USERNAME: $GITHUB_USERNAME"
+            echo "GITHUB_TOKEN present: $(if [ -n "$GITHUB_TOKEN" ]; then echo 'YES'; else echo 'NO'; fi)"
+            echo "VERSION: $VERSION"
+            echo "IMAGE_TAG: $IMAGE_TAG"
+            echo "========================="
+      - run:
           name: Login to GitHub Container Registry
           command: |
-            echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+            # Use CIRCLE_PROJECT_USERNAME if GITHUB_USERNAME is not set
+            GITHUB_USER=${GITHUB_USERNAME:-$CIRCLE_PROJECT_USERNAME}
+            echo "Logging in as: $GITHUB_USER"
+            echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USER --password-stdin
       - run:
           name: Build and push multi-platform Docker image
           command: |
