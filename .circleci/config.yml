@@ -466,20 +466,19 @@ jobs:
   docker-publish:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: medium
+    resource_class: small
     working_directory: ~/repo
     # Add timeout to prevent hanging
-    no_output_timeout: 15m
+    no_output_timeout: 10m
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Set up Docker Buildx
+          name: Set up Docker
           command: |
-            # Install Docker Buildx
-            docker buildx create --name multiplatform --driver docker-container --use
-            docker buildx inspect --bootstrap
+            # Basic Docker setup - no buildx for simplicity
+            docker info
       - run:
           name: Determine version and tags
           command: |
@@ -539,7 +538,7 @@ jobs:
             echo "Logging in as: $GITHUB_USER"
             echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USER --password-stdin
       - run:
-          name: Build and push multi-platform Docker image
+          name: Build and push Docker image
           command: |
             set -e
             
@@ -551,31 +550,29 @@ jobs:
             
             echo "Building and pushing to: $BASE_IMAGE"
             
-            # Build tag arguments
-            TAG_ARGS="--tag ${BASE_IMAGE}:${IMAGE_TAG}"
-            
-            # Add additional tags for stable releases
-            if [ -n "$ADDITIONAL_TAGS" ]; then
-              for tag in $ADDITIONAL_TAGS; do
-                TAG_ARGS="$TAG_ARGS --tag ${BASE_IMAGE}:${tag}"
-              done
-            fi
-            
-            echo "Tag arguments: $TAG_ARGS"
-            
-            # Build and push single-platform image (for debugging)
-            # TODO: Revert to multi-platform after debugging
-            docker buildx build \
-              --platform linux/amd64 \
-              --push \
-              $TAG_ARGS \
+            # Build the image with basic docker build
+            echo "Building Docker image..."
+            docker build \
               --label "org.opencontainers.image.source=https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" \
               --label "org.opencontainers.image.version=${VERSION}" \
               --label "org.opencontainers.image.revision=${CIRCLE_SHA1}" \
               --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+              -t ${BASE_IMAGE}:${IMAGE_TAG} \
               .
             
-            echo "✅ Multi-platform Docker image published successfully"
+            echo "Pushing primary tag: ${BASE_IMAGE}:${IMAGE_TAG}"
+            docker push ${BASE_IMAGE}:${IMAGE_TAG}
+            
+            # Add additional tags for stable releases
+            if [ -n "$ADDITIONAL_TAGS" ]; then
+              for tag in $ADDITIONAL_TAGS; do
+                echo "Tagging and pushing: ${BASE_IMAGE}:${tag}"
+                docker tag ${BASE_IMAGE}:${IMAGE_TAG} ${BASE_IMAGE}:${tag}
+                docker push ${BASE_IMAGE}:${tag}
+              done
+            fi
+            
+            echo "✅ Docker image published successfully"
             echo "Images published:"
             echo "  ${BASE_IMAGE}:${IMAGE_TAG}"
             if [ -n "$ADDITIONAL_TAGS" ]; then
