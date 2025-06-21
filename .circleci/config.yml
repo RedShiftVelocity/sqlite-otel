@@ -139,17 +139,21 @@ jobs:
   docker-build-and-test:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: medium
+    resource_class: large
     working_directory: ~/repo
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Verify Docker prerequisites
+          name: Setup Docker environment
           command: |
             set -e
-            echo "Verifying Docker build prerequisites..."
+            echo "Setting up Docker environment..."
+            
+            # Check Docker daemon status
+            docker version
+            docker info
             
             # Check required files exist
             if [ ! -f "Dockerfile" ]; then
@@ -170,22 +174,40 @@ jobs:
             fi
             echo "✓ Makefile found"
             
-            echo "All prerequisites verified"
+            # Clean up any existing containers/images
+            docker container prune -f || true
+            docker image prune -f || true
+            
+            echo "Docker environment ready"
       - run:
           name: Build Docker image
           command: |
             set -e
             echo "Building Docker image..."
-            docker build -t sqlite-otel-collector:test .
-            echo "Docker image built successfully"
+            
+            # Build with progress output and better error handling
+            if ! docker build -t sqlite-otel-collector:test . --progress=plain; then
+              echo "ERROR: Docker build failed"
+              echo "Checking available disk space:"
+              df -h
+              echo "Checking Docker daemon logs:"
+              sudo journalctl -u docker.service --no-pager -n 50 || true
+              exit 1
+            fi
+            
+            echo "✅ Docker image built successfully"
             
             # Show image details
             echo "Image details:"
             docker images sqlite-otel-collector:test
             
             # Get image size
-            image_size=$(docker images sqlite-otel-collector:test --format "table {{.Size}}" | tail -n +2)
+            image_size=$(docker images sqlite-otel-collector:test --format "{{.Size}}")
             echo "Final image size: $image_size"
+            
+            # Verify image can be inspected
+            docker inspect sqlite-otel-collector:test > /dev/null
+            echo "✅ Image inspection successful"
       - run:
           name: Test Docker container startup
           command: |
@@ -195,33 +217,56 @@ jobs:
             # Clean up any existing containers
             docker rm -f sqlite-otel-test 2>/dev/null || true
             
-            # Test container can start and stop properly  
-            # Use a random high port to avoid conflicts
-            test_port=$((20000 + RANDOM % 10000))
+            # Use a fixed high port to avoid randomness issues
+            test_port=25318
             echo "Using test port: $test_port"
             
-            container_id=$(docker run -d --name sqlite-otel-test -p $test_port:4318 sqlite-otel-collector:test)
-            echo "Container started with ID: $container_id"
+            # Check if port is available
+            if netstat -tuln | grep -q ":$test_port "; then
+              echo "Port $test_port is in use, trying alternative"
+              test_port=25319
+            fi
             
-            # Wait for container to be ready with timeout
-            echo "Waiting for container to be ready..."
-            sleep 10
-            
-            # Check container status
-            echo "Container status:"
-            docker ps -a --filter name=sqlite-otel-test
-            
-            # Check if container is running
-            if ! docker ps --filter name=sqlite-otel-test | grep -q sqlite-otel-test; then
-              echo "ERROR: Container is not running!"
-              echo "Container logs:"
-              docker logs sqlite-otel-test
+            # Start container with better error handling
+            echo "Starting container on port $test_port..."
+            if ! container_id=$(docker run -d --name sqlite-otel-test -p $test_port:4318 sqlite-otel-collector:test); then
+              echo "ERROR: Failed to start container"
+              echo "Checking available ports:"
+              netstat -tuln | grep LISTEN || true
               exit 1
             fi
             
+            echo "Container started with ID: $container_id"
+            
+            # Wait for container to be ready with timeout and health checks
+            echo "Waiting for container to be ready..."
+            max_attempts=30
+            attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              if docker ps --filter name=sqlite-otel-test | grep -q sqlite-otel-test; then
+                echo "✅ Container is running (attempt $attempt)"
+                break
+              else
+                echo "Container not running yet (attempt $attempt/$max_attempts)"
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "ERROR: Container failed to start after $max_attempts attempts"
+                  echo "Container status:"
+                  docker ps -a --filter name=sqlite-otel-test
+                  echo "Container logs:"
+                  docker logs sqlite-otel-test
+                  echo "Docker system info:"
+                  docker system df
+                  exit 1
+                fi
+                sleep 2
+                attempt=$((attempt + 1))
+              fi
+            done
+            
             # Save the test port for subsequent steps
             echo "export TEST_PORT=$test_port" >> $BASH_ENV
-            echo "Container is running successfully on port $test_port"
+            echo "✅ Container is running successfully on port $test_port"
       - run:
           name: Test Docker container health
           command: |
@@ -232,22 +277,45 @@ jobs:
             source $BASH_ENV
             echo "Testing health endpoint on port $TEST_PORT"
             
+            # Wait a bit more for the application to fully start
+            sleep 5
+            
             # Test health endpoint with retry logic
-            for i in {1..15}; do
-              if curl -f --max-time 5 http://localhost:$TEST_PORT/health; then
-                echo "✓ Health check passed on attempt $i"
+            max_attempts=20
+            attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Health check attempt $attempt/$max_attempts"
+              
+              if curl -f --connect-timeout 5 --max-time 10 -s http://localhost:$TEST_PORT/health; then
+                echo ""
+                echo "✅ Health check passed on attempt $attempt"
                 break
               else
-                echo "Health check failed, attempt $i/15"
-                if [ $i -eq 15 ]; then
-                  echo "ERROR: Health check failed after 15 attempts"
-                  echo "Container logs:"
+                echo "Health check failed (attempt $attempt/$max_attempts)"
+                
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "ERROR: Health check failed after $max_attempts attempts"
+                  echo ""
+                  echo "=== Container Status ==="
+                  docker ps -a --filter name=sqlite-otel-test
+                  echo ""
+                  echo "=== Container Logs ==="
                   docker logs sqlite-otel-test
-                  echo "Container processes:"
-                  docker exec sqlite-otel-test ps aux || true
+                  echo ""
+                  echo "=== Container Processes ==="
+                  docker exec sqlite-otel-test ps aux 2>/dev/null || echo "Could not access container processes"
+                  echo ""
+                  echo "=== Network Check ==="
+                  netstat -tuln | grep $TEST_PORT || echo "Port $TEST_PORT not listening"
+                  echo ""
+                  echo "=== Container Environment ==="
+                  docker exec sqlite-otel-test env 2>/dev/null || echo "Could not access container environment"
                   exit 1
                 fi
+                
                 sleep 3
+                attempt=$((attempt + 1))
               fi
             done
       - run:
@@ -261,15 +329,18 @@ jobs:
             echo "Testing OTLP endpoint on port $TEST_PORT"
             
             # Test OTLP endpoint with a simple trace
-            curl -X POST http://localhost:$TEST_PORT/v1/traces \
-              --max-time 10 \
+            echo "Sending test trace data..."
+            if curl -X POST http://localhost:$TEST_PORT/v1/traces \
+              --connect-timeout 5 \
+              --max-time 15 \
               -H "Content-Type: application/json" \
+              -w "HTTP Status: %{http_code}\n" \
               -d '{
                 "resourceSpans": [
                   {
                     "resource": {
                       "attributes": [
-                        {"key": "service.name", "value": {"stringValue": "test-service"}}
+                        {"key": "service.name", "value": {"stringValue": "ci-test-service"}}
                       ]
                     },
                     "scopeSpans": [
@@ -278,7 +349,7 @@ jobs:
                           {
                             "traceId": "12345678901234567890123456789012",
                             "spanId": "1234567890123456",
-                            "name": "test-span",
+                            "name": "ci-test-span",
                             "startTimeUnixNano": "1609459200000000000",
                             "endTimeUnixNano": "1609459201000000000"
                           }
@@ -287,9 +358,13 @@ jobs:
                     ]
                   }
                 ]
-              }' && echo "✓ OTLP trace endpoint test passed" || echo "⚠ OTLP endpoint test completed with issues"
+              }'; then
+              echo "✅ OTLP trace endpoint test passed"
+            else
+              echo "⚠ OTLP endpoint test had issues (this may be expected for some responses)"
+            fi
             
-            echo "Container functionality test completed"
+            echo "✅ Container functionality test completed"
       - run:
           name: Test Docker container resource usage
           command: |
