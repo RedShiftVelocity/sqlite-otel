@@ -164,9 +164,13 @@ help:
 	@echo "  make version        - Show version information"
 	@echo "  make help           - Show this help"
 	@echo "  make package-deb    - Build DEB package"
+	@echo "  make package-rpm    - Build RPM package"
 
 # Package targets
 package-deb:
 	./packaging/scripts/build-deb.sh
 
-.PHONY: all build run clean test test-coverage build-all build-linux install uninstall fmt lint tidy verify release dev run-example version help package-deb
+package-rpm:
+	./packaging/scripts/build-rpm.sh
+
+.PHONY: all build run clean test test-coverage build-all build-linux install uninstall fmt lint tidy verify release dev run-example version help package-deb package-rpm
