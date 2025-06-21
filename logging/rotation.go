@@ -52,8 +52,8 @@ func (l *Logger) rotateLocked() error {
 		return fmt.Errorf("failed to close log file: %w", err)
 	}
 
-	// Generate backup filename with timestamp and microseconds for uniqueness
-	timestamp := time.Now().Format("20060102-150405.000000")
+	// Generate backup filename with timestamp for uniqueness
+	timestamp := time.Now().Format("20060102-150405")
 	backupPath := fmt.Sprintf("%s.%s", l.logPath, timestamp)
 
 	// Rename current log file to backup
@@ -113,13 +113,10 @@ func (l *Logger) cleanupOldBackups() error {
 		// Parse timestamp from filename
 		timestampPart := strings.TrimPrefix(name, expectedPrefix)
 
-		// Try parsing with microseconds first
-		ts, err := time.Parse("20060102-150405.000000", timestampPart)
+		// Parse timestamp (second precision)
+		ts, err := time.Parse("20060102-150405", timestampPart)
 		if err != nil {
-			// Try without microseconds for backward compatibility
-			if ts, err = time.Parse("20060102-150405", timestampPart); err != nil {
-				continue // Not a valid backup file format
-			}
+			continue // Not a valid backup file format
 		}
 		backups = append(backups, backupFile{path: filepath.Join(dir, name), ts: ts})
 	}
