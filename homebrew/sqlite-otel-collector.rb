@@ -3,16 +3,13 @@ class SqliteOtelCollector < Formula
   homepage "https://github.com/RedShiftVelocity/sqlite-otel"
   head "https://github.com/RedShiftVelocity/sqlite-otel.git", branch: "main"
   
-  # Use source build from current branch for testing
-  url "https://github.com/RedShiftVelocity/sqlite-otel/archive/refs/heads/homebrew/package-manager-support.tar.gz"
-  version "0.8.0-dev"
-  sha256 :no_check  # Allow dynamic branch builds for testing
+  # For testing: use the source build approach without URL fetching
   license "MIT"
 
   depends_on "go" => :build
 
   def install
-    # Build using the native target with CGO enabled for SQLite support
+    # When testing locally, build from the current directory
     system "make", "build-native"
     
     # Install the binary
