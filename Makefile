@@ -62,6 +62,8 @@ test-coverage: test
 # Build for all platforms
 build-all: tidy
 	@echo "Building for all platforms..."
+	@echo "⚠️  Cross-compilation builds use CGO_ENABLED=0 (no SQLite support)"
+	@echo "   For SQLite support, build on target platform or use Docker"
 	@mkdir -p dist
 	@for platform in $(PLATFORMS); do \
 		GOOS=$$(echo $$platform | cut -d/ -f1); \
@@ -69,18 +71,26 @@ build-all: tidy
 		output_name=${BINARY_NAME}-$$GOOS-$$GOARCH; \
 		if [ "$$GOOS" = "windows" ]; then output_name="$$output_name.exe"; fi; \
 		echo "Building $$output_name..."; \
-		CGO_ENABLED=1 GOOS=$$GOOS GOARCH=$$GOARCH go build ${BUILDFLAGS} ${LDFLAGS} -o dist/$$output_name .; \
+		CGO_ENABLED=0 GOOS=$$GOOS GOARCH=$$GOARCH go build ${BUILDFLAGS} ${LDFLAGS} -o dist/$$output_name .; \
 	done
 	@echo "Build complete. Binaries in dist/"
+	@echo "⚠️  Note: Cross-compiled binaries do not include SQLite support"
 
 # Build only Linux binaries (for CI/CD)
 build-linux: tidy
 	@echo "Building Linux binaries..."
+	@echo "⚠️  Cross-compilation builds use CGO_ENABLED=0 (no SQLite support)"
 	@mkdir -p dist
 	@for arch in amd64 arm64 arm; do \
 		echo "Building Linux $$arch binary..."; \
-		CGO_ENABLED=1 GOOS=linux GOARCH=$$arch go build ${BUILDFLAGS} ${LDFLAGS} -o dist/${BINARY_NAME}-linux-$$arch .; \
+		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build ${BUILDFLAGS} ${LDFLAGS} -o dist/${BINARY_NAME}-linux-$$arch .; \
 	done
+
+# Build native binaries with full SQLite support (CGO enabled)
+build-native: tidy
+	@echo "Building native binary with SQLite support..."
+	@echo "✅ Using CGO_ENABLED=1 for full SQLite functionality"
+	CGO_ENABLED=1 go build ${BUILDFLAGS} ${LDFLAGS} -o ${BINARY_NAME} .
 
 # Install binary to system
 install: build
@@ -150,9 +160,10 @@ version:
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  make build          - Build for current platform"
-	@echo "  make build-all      - Build for all platforms"
-	@echo "  make build-linux    - Build Linux binaries only"
+	@echo "  make build          - Build for current platform (CGO enabled)"
+	@echo "  make build-native   - Build with full SQLite support (CGO enabled)"
+	@echo "  make build-all      - Build for all platforms (CGO disabled)"
+	@echo "  make build-linux    - Build Linux binaries only (CGO disabled)"
 	@echo "  make test           - Run tests"
 	@echo "  make test-coverage  - Run tests with coverage report"
 	@echo "  make clean          - Clean build artifacts"
@@ -168,6 +179,10 @@ help:
 	@echo "  make help           - Show this help"
 	@echo "  make package-deb    - Build DEB package"
 	@echo "  make package-rpm    - Build RPM package"
+	@echo ""
+	@echo "SQLite Support:"
+	@echo "  build, build-native: ✅ Full SQLite support (CGO enabled)"
+	@echo "  build-all, build-linux: ❌ No SQLite (CGO disabled for cross-compilation)"
 
 # Package targets
 package-deb:
@@ -176,4 +191,4 @@ package-deb:
 package-rpm:
 	./packaging/scripts/build-rpm.sh
 
-.PHONY: all build run clean test test-coverage build-all build-linux install uninstall fmt lint tidy verify release dev run-example version help package-deb package-rpm
+.PHONY: all build build-native run clean test test-coverage build-all build-linux install uninstall fmt lint tidy verify release dev run-example version help package-deb package-rpm

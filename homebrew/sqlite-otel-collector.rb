@@ -12,8 +12,8 @@ class SqliteOtelCollector < Formula
   depends_on "go" => :build
 
   def install
-    # Build using the updated Makefile with CGO enabled
-    system "make", "build"
+    # Build using the native target with CGO enabled for SQLite support
+    system "make", "build-native"
     
     # Install the binary
     bin.install "sqlite-otel" => "sqlite-otel-collector"
