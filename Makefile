@@ -28,7 +28,7 @@ PLATFORMS=linux/amd64 linux/arm64 linux/arm darwin/amd64 darwin/arm64 windows/am
 all: build
 
 # Build for current platform
-build:
+build: tidy
 	@echo "Building ${BINARY_NAME} ${VERSION} for current platform..."
 	go build ${BUILDFLAGS} ${LDFLAGS} -o ${BINARY_NAME} .
 
@@ -57,7 +57,7 @@ test-coverage: test
 	@echo "Coverage report generated: coverage.html"
 
 # Build for all platforms
-build-all:
+build-all: tidy
 	@echo "Building for all platforms..."
 	@mkdir -p dist
 	@for platform in $(PLATFORMS); do \
@@ -71,7 +71,7 @@ build-all:
 	@echo "Build complete. Binaries in dist/"
 
 # Build only Linux binaries (for CI/CD)
-build-linux:
+build-linux: tidy
 	@echo "Building Linux binaries..."
 	@mkdir -p dist
 	@for arch in amd64 arm64 arm; do \

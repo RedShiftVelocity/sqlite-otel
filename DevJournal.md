@@ -1,5 +1,30 @@
 # Development Journal
 
+## [2025-06-22] - PR #84: Go Module Dependency Management Integration
+### Actions:
+- Integrated `go mod tidy` verification into CircleCI build pipeline
+- Updated Makefile to run `go mod tidy` before all build targets (build, build-all, build-linux)
+- Added automated dependency cleanliness checks in CI/CD workflow
+- Fixed existing go.mod issue where dependency was incorrectly marked as `// indirect`
+- Tested changes locally with successful builds and test execution
+
+### Decisions:
+- Follow Go's official publishing guidelines by enforcing tidy modules
+- Fail CI builds if go.mod or go.sum files are not properly maintained
+- Integrate tidy checks early in the build process (after setup_go_modules)
+- Make dependency tidiness a prerequisite for all build operations
+
+### Challenges:
+- Existing go.mod had sqlite3 dependency incorrectly marked as indirect
+- Need to balance build speed vs. dependency verification overhead
+- Ensuring CI/CD fails fast when modules are not tidy
+
+### Learnings:
+- `go mod tidy` catches subtle dependency management issues automatically
+- Integrating dependency checks into CI prevents publishing untidy modules
+- Go publishing best practices require automated enforcement for reliability
+- Module tidiness is essential for proper dependency management in published libraries
+
 ## [2025-06-20] - v0.7 CircleCI Configuration
 ### Actions:
 - Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline

@@ -48,3 +48,19 @@ tools/
 # Development/test scripts (keep local only)
 test-commands.sh
 scripts/create-release-archives.sh
+
+# MkDocs and build artifacts
+mkdocs-env/
+.cache/
+.tmp/
+site/404.html
+site/api/
+site/cli/
+site/configuration/
+site/deployment/
+site/installation/
+site/quickstart/
+site/search/
+site/sitemap.xml
+site/sitemap.xml.gz
+site/assets_old/

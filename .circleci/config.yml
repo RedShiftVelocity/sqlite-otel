@@ -53,6 +53,19 @@ jobs:
       - checkout
       - setup_go_modules
       - run:
+          name: Verify go.mod is tidy
+          command: |
+            set -e
+            echo "Verifying go.mod and go.sum are tidy..."
+            go mod tidy
+            # Check if go mod tidy changed anything
+            if ! git diff --exit-code go.mod go.sum; then
+              echo "Error: go.mod or go.sum is not tidy"
+              echo "Please run 'go mod tidy' locally and commit the changes"
+              exit 1
+            fi
+            echo "✓ Dependencies are properly tidied"
+      - run:
           name: Build current platform binary
           command: |
             set -e
