@@ -1,5 +1,29 @@
 # Development Journal
 
+## [2025-06-21] - PR #83: Static Website Restoration
+### Actions:
+- Identified issue where MkDocs implementation replaced original static website
+- Restored original static website files (index.html, CSS, JS, favicon, logo)
+- Removed conflicting MkDocs generated assets from site/ directory
+- Temporarily moved MkDocs assets to resolve permission conflicts
+- Verified static website functionality with proper asset links
+
+### Decisions:
+- Prioritize static website over generated MkDocs output
+- Keep original branding and design intact
+- Maintain existing documentation links pointing to ./docs/
+- Use git history to recover original static site files
+
+### Challenges:
+- Permission conflicts with root-owned MkDocs generated files
+- Asset directory conflicts between static site and MkDocs output
+- Need to preserve original website design while maintaining documentation access
+
+### Learnings:
+- Static site generation can overwrite existing content if not properly configured
+- File permission issues require careful handling when restoring from git history
+- Directory structure planning is crucial when mixing static and generated content
+
 ## [2025-06-20] - v0.7 CircleCI Configuration
 ### Actions:
 - Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline
