@@ -477,11 +477,18 @@ jobs:
             # Update Homebrew
             brew update
             
+            # Install Go (required for building from source)
+            echo "Installing Go..."
+            brew install go
+            
             # Ensure curl is available (should be by default)
             if ! command -v curl >/dev/null 2>&1; then
               echo "Installing curl..."
               brew install curl
             fi
+            
+            # Verify Go installation
+            go version
             
             echo "✅ Homebrew environment ready"
       - run:
