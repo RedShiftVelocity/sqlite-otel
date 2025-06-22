@@ -48,11 +48,3 @@ tools/
 # Development/test scripts (keep local only)
 test-commands.sh
 scripts/create-release-archives.sh
-
-# MkDocs cache and build
-.cache/
-site/
-mkdocs-env/
-
-# Temporary files
-.tmp/

@@ -1,31 +1,5 @@
 # Development Journal
 
-## [2025-06-22] - PR #82: MkDocs Documentation System
-### Actions:
-- Implemented comprehensive MkDocs documentation with Material theme
-- Created complete documentation structure covering installation, configuration, CLI, API, and deployment
-- Integrated documentation with existing project structure
-- Set up professional documentation site at manishs.pages.dev/sqlite-otel/docs/
-- Configured Cloudflare Pages deployment with proper site structure
-
-### Decisions:
-- Use Material for MkDocs theme for professional appearance and functionality
-- Structure documentation with clear navigation tabs and responsive design
-- Maintain original static website at root, add MkDocs documentation at /docs/ path
-- Include comprehensive installation methods (Docker, binary, package managers)
-- Add detailed CLI reference with all command-line options
-- Include API reference with database schema and OTLP endpoints
-
-### Challenges:
-- Site structure configuration required careful build script setup to separate original static site from MkDocs documentation
-- Cloudflare Pages deployment needed proper path mapping for both root site and documentation
-- Asset path resolution for MkDocs styling required proper subdirectory configuration
-
-### Learnings:
-- MkDocs Material theme provides excellent out-of-box documentation features
-- Proper site structure planning crucial for multi-component websites
-- Cloudflare Pages build configuration requires attention to asset paths and directory structure
-
 ## [2025-06-20] - v0.7 CircleCI Configuration
 ### Actions:
 - Updated existing CircleCI configuration from basic template to comprehensive CI/CD pipeline
