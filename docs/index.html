@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite OTEL Documentation</title>
+    <meta name="description" content="Documentation for SQLite OpenTelemetry Collector">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="../site/css/style.css">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        .docs-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .docs-header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .docs-grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 3rem;
+        }
+        .docs-sidebar {
+            position: sticky;
+            top: 2rem;
+            height: fit-content;
+        }
+        .docs-nav h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+        .docs-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 2rem 0;
+        }
+        .docs-nav li {
+            margin-bottom: 0.5rem;
+        }
+        .docs-nav a {
+            color: #374151;
+            text-decoration: none;
+            font-size: 0.95rem;
+            display: block;
+            padding: 0.5rem 0;
+            transition: color 0.2s;
+        }
+        .docs-nav a:hover {
+            color: #3b82f6;
+        }
+        .docs-nav a.active {
+            color: #3b82f6;
+            font-weight: 500;
+        }
+        .docs-content h2 {
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .docs-content h3 {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        .docs-content pre {
+            background: #f3f4f6;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        .docs-content code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            background: #f3f4f6;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+        }
+        .docs-content pre code {
+            background: none;
+            padding: 0;
+        }
+        @media (max-width: 768px) {
+            .docs-grid {
+                grid-template-columns: 1fr;
+            }
+            .docs-sidebar {
+                position: static;
+                margin-bottom: 2rem;
+                padding-bottom: 2rem;
+                border-bottom: 1px solid #e5e7eb;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../" style="display: flex; align-items: center; text-decoration: none; color: inherit;">
+                    <img src="../site/assets/logo.svg" alt="SQLite OTEL" class="nav-logo">
+                    <span class="nav-title">SQLite OpenTelemetry Collector</span>
+                </a>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="../">Home</a></li>
+                <li><a href="./" class="active">Documentation</a></li>
+                <li><a href="https://github.com/RedShiftVelocity/sqlite-otel" class="nav-github">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 0C4.477 0 0 4.477 0 10c0 4.42 2.865 8.17 6.84 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.607.069-.607 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.349-1.086.635-1.337-2.22-.252-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0110 4.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C17.138 18.165 20 14.418 20 10c0-5.523-4.477-10-10-10z"/>
+                    </svg>
+                </a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="docs-container">
+        <div class="docs-header">
+            <h1>Documentation</h1>
+            <p>Complete guide to SQLite OpenTelemetry Collector</p>
+        </div>
+
+        <div class="docs-grid">
+            <aside class="docs-sidebar">
+                <nav class="docs-nav">
+                    <h3>Getting Started</h3>
+                    <ul>
+                        <li><a href="#overview" class="active">Overview</a></li>
+                        <li><a href="#installation">Installation</a></li>
+                        <li><a href="#quickstart">Quick Start</a></li>
+                    </ul>
+
+                    <h3>Configuration</h3>
+                    <ul>
+                        <li><a href="#basic-config">Basic Configuration</a></li>
+                        <li><a href="#cli-options">CLI Options</a></li>
+                        <li><a href="#service-mode">Service Mode</a></li>
+                    </ul>
+
+                    <h3>Usage</h3>
+                    <ul>
+                        <li><a href="#sending-traces">Sending Traces</a></li>
+                        <li><a href="#sending-metrics">Sending Metrics</a></li>
+                        <li><a href="#sending-logs">Sending Logs</a></li>
+                        <li><a href="#querying-data">Querying Data</a></li>
+                    </ul>
+
+                    <h3>Deployment</h3>
+                    <ul>
+                        <li><a href="#docker">Docker</a></li>
+                        <li><a href="#kubernetes">Kubernetes</a></li>
+                        <li><a href="#systemd">Systemd Service</a></li>
+                    </ul>
+                </nav>
+            </aside>
+
+            <main class="docs-content">
+                <section id="overview">
+                    <h2>Overview</h2>
+                    <p>SQLite OpenTelemetry Collector is a lightweight, single-binary OpenTelemetry collector that stores telemetry data directly in an embedded SQLite database. It's designed for edge deployments, development environments, and situations where you need local telemetry storage without external dependencies.</p>
+
+                    <h3>Key Features</h3>
+                    <ul>
+                        <li><strong>Single Binary</strong> - No external dependencies, embedded SQLite database</li>
+                        <li><strong>OTLP Support</strong> - Full support for traces, metrics, and logs via OTLP/HTTP</li>
+                        <li><strong>Lightweight</strong> - Minimal resource footprint, suitable for edge devices</li>
+                        <li><strong>Secure</strong> - Runs as non-root with systemd hardening</li>
+                        <li><strong>Easy Deployment</strong> - Native packages, Docker images, and Kubernetes manifests</li>
+                    </ul>
+                </section>
+
+                <section id="installation">
+                    <h2>Installation</h2>
+                    
+                    <h3>Binary Installation</h3>
+                    <pre><code># Download latest release
+wget https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-linux-amd64
+chmod +x sqlite-otel-linux-amd64
+sudo mv sqlite-otel-linux-amd64 /usr/local/bin/sqlite-otel
+
+# Verify installation
+sqlite-otel -version</code></pre>
+
+                    <h3>Package Manager</h3>
+                    <pre><code># Ubuntu/Debian
+wget https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-collector_amd64.deb
+sudo dpkg -i sqlite-otel-collector_amd64.deb
+
+# RHEL/CentOS/Fedora
+wget https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-collector-amd64.rpm
+sudo rpm -ivh sqlite-otel-collector-amd64.rpm</code></pre>
+
+                    <h3>Docker</h3>
+                    <pre><code>docker pull ghcr.io/redshiftvelocity/sqlite-otel:latest</code></pre>
+                </section>
+
+                <section id="quickstart">
+                    <h2>Quick Start</h2>
+                    
+                    <h3>Running the Collector</h3>
+                    <pre><code># Run with default settings
+sqlite-otel
+
+# Run with custom port and database
+sqlite-otel -port 4318 -db-path ./my-data.db
+
+# Run in Docker
+docker run -d --name sqlite-otel -p 4318:4318 \
+  ghcr.io/redshiftvelocity/sqlite-otel:latest</code></pre>
+
+                    <h3>Sending Test Data</h3>
+                    <pre><code># Send a test trace
+curl -X POST http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d '{"resourceSpans": []}'
+
+# Check collector status
+curl http://localhost:4318/health</code></pre>
+                </section>
+
+                <section id="basic-config">
+                    <h2>Basic Configuration</h2>
+                    <p>The collector can be configured using command-line flags. All configuration is optional - the collector works with sensible defaults.</p>
+
+                    <h3>Database Location</h3>
+                    <p>By default, the database is stored in:</p>
+                    <ul>
+                        <li><strong>User mode:</strong> <code>~/.local/share/sqlite-otel/otel-collector.db</code></li>
+                        <li><strong>Service mode:</strong> <code>/var/lib/sqlite-otel-collector/otel-collector.db</code></li>
+                    </ul>
+                </section>
+
+                <section id="cli-options">
+                    <h2>CLI Options</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Flag</th>
+                                <th>Description</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>-port</code></td>
+                                <td>Port to listen on</td>
+                                <td>4318 (OTLP/HTTP standard)</td>
+                            </tr>
+                            <tr>
+                                <td><code>-db-path</code></td>
+                                <td>Path to SQLite database file</td>
+                                <td>Auto-detected based on mode</td>
+                            </tr>
+                            <tr>
+                                <td><code>-log-file</code></td>
+                                <td>Path to log file</td>
+                                <td>Auto-detected based on mode</td>
+                            </tr>
+                            <tr>
+                                <td><code>-log-max-size</code></td>
+                                <td>Maximum log file size in MB</td>
+                                <td>100</td>
+                            </tr>
+                            <tr>
+                                <td><code>-log-max-backups</code></td>
+                                <td>Number of old log files to keep</td>
+                                <td>7</td>
+                            </tr>
+                            <tr>
+                                <td><code>-version</code></td>
+                                <td>Show version information</td>
+                                <td>-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <!-- Add more sections as needed -->
+            </main>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script src="docs.js"></script>
+</body>
+</html>
