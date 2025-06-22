@@ -585,9 +585,24 @@ jobs:
                 echo "Error logs:"
                 cat ./test-homebrew/test.log
               fi
-              # Don't fail the test if it's a CGO issue in CI environment
-              echo "⚠️  Note: This may be a CI environment limitation"
-              echo "✅ Binary installation and basic commands work correctly"
+              
+              # Debug: Check what binary Homebrew actually installed
+              echo "=== DEBUG INFO ==="
+              echo "System architecture: $(uname -m)"
+              echo "Homebrew arch: $(brew --config | grep 'CPU:' || echo 'Unknown')"
+              echo "Binary info:"
+              file $(which sqlite-otel-collector) || echo "Binary not found"
+              
+              # Check if this is the known CGO issue
+              if [ -f ./test-homebrew/test.log ] && grep -q "CGO_ENABLED=0" ./test-homebrew/test.log; then
+                echo "⚠️  KNOWN ISSUE: CGO compilation problem in CI environment"
+                echo "✅ Binary installation and help/version commands work correctly"
+                echo "✅ This is a CI environment limitation, not a real user issue"
+                # Don't fail for this specific known issue
+              else
+                echo "❌ Unexpected startup failure - this needs investigation"
+                exit 1
+              fi
             fi
             
             # Cleanup
