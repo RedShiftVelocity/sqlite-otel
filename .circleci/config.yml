@@ -502,7 +502,7 @@ jobs:
             echo "Testing Homebrew formula installation..."
             
             # Get the raw GitHub URL for the formula
-            FORMULA_URL="https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/feature/homebrew-support/homebrew/sqlite-otel-collector.rb"
+            FORMULA_URL="https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/homebrew/package-manager-support/homebrew/sqlite-otel-collector.rb"
             
             echo "Installing formula from: $FORMULA_URL"
             
