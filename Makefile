@@ -21,6 +21,9 @@ GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS=-ldflags "-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}"
 BUILDFLAGS=-trimpath
 
+# Enable CGO for SQLite support (required for go-sqlite3)
+export CGO_ENABLED=1
+
 # Platforms to build for
 PLATFORMS=linux/amd64 linux/arm64 linux/arm darwin/amd64 darwin/arm64 windows/amd64
 
@@ -66,7 +69,7 @@ build-all: tidy
 		output_name=${BINARY_NAME}-$$GOOS-$$GOARCH; \
 		if [ "$$GOOS" = "windows" ]; then output_name="$$output_name.exe"; fi; \
 		echo "Building $$output_name..."; \
-		GOOS=$$GOOS GOARCH=$$GOARCH go build ${BUILDFLAGS} ${LDFLAGS} -o dist/$$output_name .; \
+		CGO_ENABLED=1 GOOS=$$GOOS GOARCH=$$GOARCH go build ${BUILDFLAGS} ${LDFLAGS} -o dist/$$output_name .; \
 	done
 	@echo "Build complete. Binaries in dist/"
 
@@ -76,7 +79,7 @@ build-linux: tidy
 	@mkdir -p dist
 	@for arch in amd64 arm64 arm; do \
 		echo "Building Linux $$arch binary..."; \
-		GOOS=linux GOARCH=$$arch go build ${BUILDFLAGS} ${LDFLAGS} -o dist/${BINARY_NAME}-linux-$$arch .; \
+		CGO_ENABLED=1 GOOS=linux GOARCH=$$arch go build ${BUILDFLAGS} ${LDFLAGS} -o dist/${BINARY_NAME}-linux-$$arch .; \
 	done
 
 # Install binary to system

@@ -121,7 +121,7 @@ The formula supports:
 - **macOS**: Intel (x86_64) and Apple Silicon (ARM64)  
 - **Linux**: x86_64, ARM64, and ARM (via Homebrew on Linux)
 
-**Note**: This formula uses pre-built binaries from GitHub releases for faster installation.
+**Note**: This formula builds from source with CGO enabled to ensure proper SQLite support. A Go compiler is required during installation.
 
 ## Updating
 

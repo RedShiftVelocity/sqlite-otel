@@ -1,56 +1,22 @@
 class SqliteOtelCollector < Formula
   desc "Lightweight OpenTelemetry collector with SQLite storage"
   homepage "https://github.com/RedShiftVelocity/sqlite-otel"
-  version "0.8.0"
+  head "https://github.com/RedShiftVelocity/sqlite-otel.git", branch: "main"
+  
+  # Use source build from current branch for testing
+  url "https://github.com/RedShiftVelocity/sqlite-otel/archive/refs/heads/homebrew/package-manager-support.tar.gz"
+  version "0.8.0-dev"
+  sha256 :no_check  # Allow dynamic branch builds for testing
   license "MIT"
 
-  on_macos do
-    if Hardware::CPU.intel?
-      url "https://github.com/RedShiftVelocity/sqlite-otel/releases/download/v0.8.0/sqlite-otel-darwin-amd64"
-      sha256 "248838a90871f2baa46e9d58a22df0cbde1e1746819ac5e7904fced42cb98746"
+  depends_on "go" => :build
 
-      def install
-        bin.install "sqlite-otel-darwin-amd64" => "sqlite-otel-collector"
-      end
-    end
-
-    if Hardware::CPU.arm?
-      url "https://github.com/RedShiftVelocity/sqlite-otel/releases/download/v0.8.0/sqlite-otel-darwin-arm64"
-      sha256 "0dd76ddc6e69477bdb6b9f3b9c3d8e4843bcde35ac96f5b754b6092791ae0822"
-
-      def install
-        bin.install "sqlite-otel-darwin-arm64" => "sqlite-otel-collector"
-      end
-    end
-  end
-
-  on_linux do
-    if Hardware::CPU.intel?
-      url "https://github.com/RedShiftVelocity/sqlite-otel/releases/download/v0.8.0/sqlite-otel-linux-amd64"
-      sha256 "b4c04b74755e00ac6935ae96dd1c5195579c993c490a7c5ebf1e7d89b48da9f3"
-
-      def install
-        bin.install "sqlite-otel-linux-amd64" => "sqlite-otel-collector"
-      end
-    end
-
-    if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/RedShiftVelocity/sqlite-otel/releases/download/v0.8.0/sqlite-otel-linux-arm64"
-      sha256 "e8e718977d8d381f62af725bf956ebab7bbe05edb4cc2517260487d9cdcb1f86"
-
-      def install
-        bin.install "sqlite-otel-linux-arm64" => "sqlite-otel-collector"
-      end
-    end
-
-    if Hardware::CPU.arm? && !Hardware::CPU.is_64_bit?
-      url "https://github.com/RedShiftVelocity/sqlite-otel/releases/download/v0.8.0/sqlite-otel-linux-arm"
-      sha256 "5a47edcdb6d6b4a8a65e95e3081086a841836d70a17556fb960351e4cd6482e0"
-
-      def install
-        bin.install "sqlite-otel-linux-arm" => "sqlite-otel-collector"
-      end
-    end
+  def install
+    # Build using the updated Makefile with CGO enabled
+    system "make", "build"
+    
+    # Install the binary
+    bin.install "sqlite-otel" => "sqlite-otel-collector"
   end
 
   service do
