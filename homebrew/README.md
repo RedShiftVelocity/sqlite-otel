@@ -116,12 +116,12 @@ rm -rf $(brew --prefix)/var/lib/sqlite-otel-collector/
 
 ## Platform Support
 
-The formula builds from source and supports:
+The formula supports:
 
-- **macOS**: Intel (x86_64) and Apple Silicon (ARM64)
+- **macOS**: Intel (x86_64) and Apple Silicon (ARM64)  
 - **Linux**: x86_64, ARM64, and ARM (via Homebrew on Linux)
 
-**Note**: This formula builds from source with CGO enabled to ensure proper SQLite support. This requires Go and a C compiler to be available during installation.
+**Note**: This formula uses pre-built binaries from GitHub releases for faster installation.
 
 ## Updating
 
