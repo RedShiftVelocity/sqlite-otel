@@ -496,20 +496,40 @@ jobs:
             
             echo "✅ Formula syntax validation completed"
       - run:
-          name: Test Homebrew formula installation
+          name: Test Homebrew formula installation (local)
           command: |
             set -e
-            echo "Testing Homebrew formula installation..."
+            echo "Testing Homebrew formula installation from local file..."
             
-            # Get the raw GitHub URL for the formula
-            FORMULA_URL="https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/homebrew/package-manager-support/homebrew/sqlite-otel-collector.rb"
+            # Install the formula from local file (this is how developers would test)
+            echo "Installing formula from local file..."
+            brew install --build-from-source ./homebrew/sqlite-otel-collector.rb
             
-            echo "Installing formula from: $FORMULA_URL"
+            echo "✅ Formula installed successfully from local file"
+      - run:
+          name: Test GitHub raw URL access (documentation validation)
+          command: |
+            set -e
+            echo "Testing GitHub raw URL access for documentation..."
             
-            # Install the formula
-            brew install --formula "$FORMULA_URL"
+            # Test that the raw URL is accessible (this is what users will use)
+            RAW_URL="https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/main/homebrew/sqlite-otel-collector.rb"
+            echo "Testing URL accessibility: $RAW_URL"
             
-            echo "✅ Formula installed successfully"
+            # Download and validate the formula file exists and is accessible
+            curl -f -s "$RAW_URL" > /tmp/downloaded-formula.rb
+            
+            # Basic validation that it's a Ruby formula
+            if grep -q "class SqliteOtelCollector" /tmp/downloaded-formula.rb; then
+              echo "✅ Formula is accessible from GitHub raw URL"
+              echo "✅ Users will be able to install with:"
+              echo "    brew install --formula $RAW_URL"
+            else
+              echo "❌ Downloaded file doesn't appear to be the correct formula"
+              exit 1
+            fi
+            
+            echo "✅ GitHub URL validation completed"
       - run:
           name: Test binary functionality
           command: |

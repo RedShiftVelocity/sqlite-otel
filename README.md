@@ -11,8 +11,9 @@ This project involves creating a standalone Go binary that functions as an OpenT
 
 ### Homebrew (macOS & Linux)
 ```bash
-# Install directly from GitHub
-brew install --formula https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/main/homebrew/sqlite-otel-collector.rb
+# Download and install the formula
+curl -O https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/main/homebrew/sqlite-otel-collector.rb
+brew install --build-from-source ./sqlite-otel-collector.rb
 
 # Start immediately
 sqlite-otel-collector

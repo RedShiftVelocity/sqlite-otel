@@ -7,9 +7,15 @@ This directory contains the Homebrew formula for SQLite OpenTelemetry Collector.
 ### Option 1: Direct Formula Installation (Recommended)
 
 ```bash
-# Install directly from this repository
-brew install --formula https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/main/homebrew/sqlite-otel-collector.rb
+# Download and install the formula locally
+curl -O https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/main/homebrew/sqlite-otel-collector.rb
+brew install --build-from-source ./sqlite-otel-collector.rb
+
+# Alternatively, for development/testing (from local repository)
+brew install --build-from-source ./homebrew/sqlite-otel-collector.rb
 ```
+
+**Note**: Homebrew requires local formula files for non-checksummed installs. The download step ensures you have the latest formula locally.
 
 ### Option 2: Custom Tap (Future)
 
