@@ -19,6 +19,7 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
+            margin-top: 80px; /* Add space for fixed navbar */
         }
         .docs-header {
             margin-bottom: 3rem;
@@ -290,7 +291,494 @@ curl http://localhost:4318/health</code></pre>
                     </table>
                 </section>
 
-                <!-- Add more sections as needed -->
+                <section id="service-mode">
+                    <h2>Service Mode</h2>
+                    <p>When running as a systemd service, the collector uses system paths and runs with enhanced security:</p>
+                    
+                    <h3>Default Service Paths</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Component</th>
+                                <th>Path</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Database</td>
+                                <td><code>/var/lib/sqlite-otel-collector/otel-collector.db</code></td>
+                                <td>Persistent telemetry storage</td>
+                            </tr>
+                            <tr>
+                                <td>Logs</td>
+                                <td><code>/var/log/sqlite-otel-collector.log</code></td>
+                                <td>Service logs with rotation</td>
+                            </tr>
+                            <tr>
+                                <td>Config</td>
+                                <td><code>/etc/sqlite-otel-collector/</code></td>
+                                <td>Configuration directory</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Service Management</h3>
+                    <pre><code># Start the service
+sudo systemctl start sqlite-otel-collector
+
+# Enable on boot
+sudo systemctl enable sqlite-otel-collector
+
+# Check status
+sudo systemctl status sqlite-otel-collector
+
+# View logs
+sudo journalctl -u sqlite-otel-collector -f
+
+# Restart service
+sudo systemctl restart sqlite-otel-collector</code></pre>
+
+                    <h3>Security Features</h3>
+                    <ul>
+                        <li>Runs as dedicated <code>sqlite-otel</code> user (non-root)</li>
+                        <li>Systemd hardening with namespace isolation</li>
+                        <li>Private /tmp and restricted system calls</li>
+                        <li>No new privileges after start</li>
+                    </ul>
+                </section>
+
+                <section id="sending-traces">
+                    <h2>Sending Traces</h2>
+                    <p>Send distributed traces using the OTLP/HTTP protocol:</p>
+
+                    <h3>REST API Endpoint</h3>
+                    <pre><code>POST http://localhost:4318/v1/traces
+Content-Type: application/json</code></pre>
+
+                    <h3>Example Trace</h3>
+                    <pre><code>{
+  "resourceSpans": [{
+    "resource": {
+      "attributes": [{
+        "key": "service.name",
+        "value": { "stringValue": "my-service" }
+      }]
+    },
+    "scopeSpans": [{
+      "scope": {
+        "name": "my-instrumentation-library",
+        "version": "1.0.0"
+      },
+      "spans": [{
+        "traceId": "5b8efff798038103d269b633813fc60c",
+        "spanId": "eee19b7ec3c1b173",
+        "parentSpanId": "eee19b7ec3c1b174",
+        "name": "HTTP GET /api/users",
+        "startTimeUnixNano": "1544712660000000000",
+        "endTimeUnixNano": "1544712661000000000",
+        "kind": 2,
+        "attributes": [{
+          "key": "http.method",
+          "value": { "stringValue": "GET" }
+        }, {
+          "key": "http.url",
+          "value": { "stringValue": "/api/users" }
+        }]
+      }]
+    }]
+  }]
+}</code></pre>
+
+                    <h3>SDK Integration</h3>
+                    <pre><code># Python Example
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# Configure the OTLP exporter
+otlp_exporter = OTLPSpanExporter(
+    endpoint="http://localhost:4318/v1/traces",
+)
+
+# Set up the tracer
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer(__name__)
+
+# Add the exporter to the span processor
+span_processor = BatchSpanProcessor(otlp_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# Create spans
+with tracer.start_as_current_span("my-operation"):
+    # Your code here
+    pass</code></pre>
+                </section>
+
+                <section id="sending-metrics">
+                    <h2>Sending Metrics</h2>
+                    <p>Send metrics data using the OTLP/HTTP protocol:</p>
+
+                    <h3>REST API Endpoint</h3>
+                    <pre><code>POST http://localhost:4318/v1/metrics
+Content-Type: application/json</code></pre>
+
+                    <h3>Example Metrics</h3>
+                    <pre><code>{
+  "resourceMetrics": [{
+    "resource": {
+      "attributes": [{
+        "key": "service.name",
+        "value": { "stringValue": "my-service" }
+      }]
+    },
+    "scopeMetrics": [{
+      "scope": {
+        "name": "my-instrumentation-library",
+        "version": "1.0.0"
+      },
+      "metrics": [{
+        "name": "http_server_duration",
+        "description": "Duration of HTTP server requests",
+        "unit": "ms",
+        "histogram": {
+          "dataPoints": [{
+            "startTimeUnixNano": "1544712660000000000",
+            "timeUnixNano": "1544712661000000000",
+            "count": "100",
+            "sum": 5000.0,
+            "bucketCounts": ["10", "20", "30", "20", "10", "10"],
+            "explicitBounds": [0, 10, 25, 50, 100, 250]
+          }]
+        }
+      }]
+    }]
+  }]
+}</code></pre>
+
+                    <h3>Prometheus Integration</h3>
+                    <pre><code># Configure Prometheus to remote write to SQLite OTEL
+remote_write:
+  - url: http://localhost:4318/v1/metrics
+    remote_timeout: 30s</code></pre>
+                </section>
+
+                <section id="sending-logs">
+                    <h2>Sending Logs</h2>
+                    <p>Send structured logs using the OTLP/HTTP protocol:</p>
+
+                    <h3>REST API Endpoint</h3>
+                    <pre><code>POST http://localhost:4318/v1/logs
+Content-Type: application/json</code></pre>
+
+                    <h3>Example Logs</h3>
+                    <pre><code>{
+  "resourceLogs": [{
+    "resource": {
+      "attributes": [{
+        "key": "service.name",
+        "value": { "stringValue": "my-service" }
+      }]
+    },
+    "scopeLogs": [{
+      "scope": {
+        "name": "my-instrumentation-library",
+        "version": "1.0.0"
+      },
+      "logRecords": [{
+        "timeUnixNano": "1544712660000000000",
+        "severityNumber": 9,
+        "severityText": "INFO",
+        "body": {
+          "stringValue": "User login successful"
+        },
+        "attributes": [{
+          "key": "user.id",
+          "value": { "stringValue": "user123" }
+        }, {
+          "key": "action",
+          "value": { "stringValue": "login" }
+        }]
+      }]
+    }]
+  }]
+}</code></pre>
+
+                    <h3>Fluentd Integration</h3>
+                    <pre><code># Fluentd configuration
+&lt;match **&gt;
+  @type http
+  endpoint http://localhost:4318/v1/logs
+  content_type application/json
+  json_array true
+&lt;/match&gt;</code></pre>
+                </section>
+
+                <section id="querying-data">
+                    <h2>Querying Data</h2>
+                    <p>Access stored telemetry data directly from the SQLite database:</p>
+
+                    <h3>Database Location</h3>
+                    <pre><code># User mode
+~/.local/share/sqlite-otel/otel-collector.db
+
+# Service mode
+/var/lib/sqlite-otel-collector/otel-collector.db</code></pre>
+
+                    <h3>Query Examples</h3>
+                    <pre><code># Connect to database
+sqlite3 /var/lib/sqlite-otel-collector/otel-collector.db
+
+# View recent traces
+SELECT * FROM traces 
+ORDER BY timestamp DESC 
+LIMIT 10;
+
+# Count traces by service
+SELECT service_name, COUNT(*) as count 
+FROM traces 
+GROUP BY service_name;
+
+# Find slow operations
+SELECT operation_name, duration_ms 
+FROM traces 
+WHERE duration_ms > 1000 
+ORDER BY duration_ms DESC;
+
+# Export data as JSON
+.mode json
+.output traces.json
+SELECT * FROM traces;
+.output stdout</code></pre>
+
+                    <h3>Database Schema</h3>
+                    <p>The collector stores data in three main tables:</p>
+                    <ul>
+                        <li><strong>traces</strong> - Distributed trace spans</li>
+                        <li><strong>metrics</strong> - Time-series metrics data</li>
+                        <li><strong>logs</strong> - Structured log entries</li>
+                    </ul>
+
+                    <h3>Visualization Tools</h3>
+                    <p>You can visualize the data using:</p>
+                    <ul>
+                        <li>SQLite browser applications</li>
+                        <li>Custom dashboards with SQL queries</li>
+                        <li>Export to JSON for external tools</li>
+                    </ul>
+                </section>
+
+                <section id="docker">
+                    <h2>Docker</h2>
+                    <p>Deploy the collector using Docker for easy containerized operations:</p>
+
+                    <h3>Quick Start</h3>
+                    <pre><code># Run with Docker
+docker run -d \
+  --name sqlite-otel \
+  -p 4318:4318 \
+  -v sqlite-otel-data:/var/lib/sqlite-otel-collector \
+  -v sqlite-otel-logs:/var/log \
+  --restart unless-stopped \
+  redshiftvelocity/sqlite-otel:latest</code></pre>
+
+                    <h3>Docker Compose</h3>
+                    <pre><code>version: '3.8'
+
+services:
+  sqlite-otel:
+    image: redshiftvelocity/sqlite-otel:latest
+    container_name: sqlite-otel
+    ports:
+      - "4318:4318"
+    volumes:
+      - sqlite-data:/var/lib/sqlite-otel-collector
+      - sqlite-logs:/var/log
+    environment:
+      - LOG_MAX_SIZE=50
+      - LOG_MAX_BACKUPS=5
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  sqlite-data:
+  sqlite-logs:</code></pre>
+
+                    <h3>Environment Variables</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Variable</th>
+                                <th>Description</th>
+                                <th>Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>SQLITE_OTEL_PORT</code></td>
+                                <td>Port to listen on</td>
+                                <td>4318</td>
+                            </tr>
+                            <tr>
+                                <td><code>LOG_MAX_SIZE</code></td>
+                                <td>Max log size in MB</td>
+                                <td>100</td>
+                            </tr>
+                            <tr>
+                                <td><code>LOG_MAX_BACKUPS</code></td>
+                                <td>Number of log backups</td>
+                                <td>7</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section id="kubernetes">
+                    <h2>Kubernetes</h2>
+                    <p>Deploy the collector in Kubernetes clusters using various patterns:</p>
+
+                    <h3>DaemonSet Deployment</h3>
+                    <pre><code>apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sqlite-otel-collector
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app: sqlite-otel-collector
+  template:
+    metadata:
+      labels:
+        app: sqlite-otel-collector
+    spec:
+      containers:
+      - name: collector
+        image: redshiftvelocity/sqlite-otel:latest
+        ports:
+        - containerPort: 4318
+          protocol: TCP
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/sqlite-otel-collector
+        - name: logs
+          mountPath: /var/log
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: data
+        hostPath:
+          path: /var/lib/sqlite-otel
+          type: DirectoryOrCreate
+      - name: logs
+        hostPath:
+          path: /var/log/sqlite-otel
+          type: DirectoryOrCreate</code></pre>
+
+                    <h3>Service Definition</h3>
+                    <pre><code>apiVersion: v1
+kind: Service
+metadata:
+  name: sqlite-otel-collector
+  namespace: observability
+spec:
+  selector:
+    app: sqlite-otel-collector
+  ports:
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+    protocol: TCP
+  type: ClusterIP</code></pre>
+
+                    <h3>Sidecar Pattern</h3>
+                    <p>Add the collector as a sidecar to your application pods:</p>
+                    <pre><code>containers:
+- name: app
+  image: myapp:latest
+  # Your app configuration
+- name: sqlite-otel
+  image: redshiftvelocity/sqlite-otel:latest
+  ports:
+  - containerPort: 4318
+  volumeMounts:
+  - name: telemetry-data
+    mountPath: /var/lib/sqlite-otel-collector</code></pre>
+                </section>
+
+                <section id="systemd">
+                    <h2>Systemd Service</h2>
+                    <p>The collector includes a hardened systemd service configuration for production deployments:</p>
+
+                    <h3>Service Configuration</h3>
+                    <pre><code># /etc/systemd/system/sqlite-otel-collector.service
+[Unit]
+Description=SQLite OpenTelemetry Collector
+Documentation=https://github.com/RedShiftVelocity/sqlite-otel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sqlite-otel
+Group=sqlite-otel
+ExecStart=/usr/bin/sqlite-otel-collector
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sqlite-otel-collector /var/log
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+PrivateMounts=true
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+
+                    <h3>Managing the Service</h3>
+                    <pre><code># Enable and start
+sudo systemctl enable --now sqlite-otel-collector
+
+# Check status
+sudo systemctl status sqlite-otel-collector
+
+# View logs
+sudo journalctl -u sqlite-otel-collector -f
+
+# Restart
+sudo systemctl restart sqlite-otel-collector
+
+# Stop
+sudo systemctl stop sqlite-otel-collector</code></pre>
+
+                    <h3>Log Rotation</h3>
+                    <p>The service automatically rotates logs based on size and age:</p>
+                    <ul>
+                        <li>Maximum file size: 100MB (configurable)</li>
+                        <li>Keep 7 backup files (configurable)</li>
+                        <li>Compress old files to save space</li>
+                        <li>Delete files older than 30 days</li>
+                    </ul>
+                </section>
             </main>
         </div>
     </div>
