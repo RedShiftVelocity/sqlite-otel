@@ -551,16 +551,28 @@ jobs:
             # Test help command
             sqlite-otel-collector --help
             
-            # Test that the binary can start (but don't leave it running)
-            timeout 5 sqlite-otel-collector --port 0 --db-path ./test.db || {
-              exit_code=$?
-              if [ $exit_code -eq 124 ]; then
-                echo "✅ Binary started successfully (timeout expected)"
-              else
-                echo "ERROR: Binary failed to start (exit code: $exit_code)"
-                exit 1
-              fi
-            }
+            # Test that the binary can start (macOS compatible approach)
+            echo "Testing binary startup capability..."
+            
+            # Start the binary in background with ephemeral port
+            sqlite-otel-collector --port 0 --db-path ./test.db &
+            BINARY_PID=$!
+            
+            # Give it a moment to start
+            sleep 3
+            
+            # Check if the process is still running (successful startup)
+            if ps -p $BINARY_PID > /dev/null 2>&1; then
+              echo "✅ Binary started successfully (PID: $BINARY_PID)"
+              
+              # Clean shutdown
+              kill $BINARY_PID
+              wait $BINARY_PID 2>/dev/null || true
+              echo "✅ Binary shutdown cleanly"
+            else
+              echo "ERROR: Binary failed to start or crashed immediately"
+              exit 1
+            fi
             
             echo "✅ Binary functionality test completed"
       - run:
