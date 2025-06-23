@@ -43,6 +43,20 @@ chmod +x sqlite-otel-darwin-arm64
 ```
 
 ### Package Managers
+
+#### Ubuntu PPA (Recommended)
+```bash
+# Add PPA and install
+sudo add-apt-repository ppa:manishsinha/sqlite-ote
+sudo apt-get update
+sudo apt-get install sqlite-otel-collector
+
+# Start service
+sudo systemctl enable sqlite-otel-collector
+sudo systemctl start sqlite-otel-collector
+```
+
+#### Direct Package Download
 ```bash
 # Ubuntu/Debian
 curl -LO https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-collector_0.8.0_amd64.deb
