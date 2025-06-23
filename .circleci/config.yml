@@ -40,11 +40,13 @@ executors:
   go-executor:
     docker:
       - image: cimg/go:1.21.6
+    resource_class: small
     working_directory: ~/repo
   
   docker-executor:
     docker:
       - image: cimg/go:1.21.6
+    resource_class: small
     working_directory: ~/repo
 
 jobs:
@@ -173,7 +175,7 @@ jobs:
   docker-build-and-test:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: large
+    resource_class: medium
     working_directory: ~/repo
     steps:
       - checkout
@@ -738,6 +740,13 @@ jobs:
               IMAGE_TAG="${VERSION}-dev-${BRANCH_SUFFIX}"
               ADDITIONAL_TAGS=""
               echo "Building development version from docker branch: $IMAGE_TAG"
+            elif [[ "$CIRCLE_BRANCH" =~ ^packaging/.* ]]; then
+              # Packaging branch - development version
+              VERSION=$(./sqlite-otel --version | head -1 | awk '{print $2}')
+              BRANCH_SUFFIX=$(echo $CIRCLE_BRANCH | sed 's/packaging\///' | sed 's/[^a-zA-Z0-9]/-/g')
+              IMAGE_TAG="${VERSION}-dev-${BRANCH_SUFFIX}"
+              ADDITIONAL_TAGS=""
+              echo "Building development version from packaging branch: $IMAGE_TAG"
             else
               echo "Unexpected branch/tag context"
               exit 1
@@ -833,6 +842,7 @@ workflows:
                 - /deb\/.*/
                 - /rpm\/.*/
                 - /homebrew\/.*/
+                - /packaging\/.*/
             tags:
               ignore: /.*/
       - test:
@@ -847,6 +857,7 @@ workflows:
                 - /deb\/.*/
                 - /rpm\/.*/
                 - /homebrew\/.*/
+                - /packaging\/.*/
             tags:
               ignore: /.*/
   
@@ -1027,3 +1038,62 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v.*/
+
+  # Comprehensive packaging workflow for packaging/* branches
+  packaging-workflow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      # All packaging stages run in parallel after test
+      - deb-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - rpm-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - docker-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - docker-publish:
+          requires:
+            - docker-build-and-test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - homebrew-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
