@@ -23,6 +23,12 @@ override_dh_auto_install:
 	install -D -m 0644 packaging/systemd/sqlite-otel-collector.service \
 		debian/sqlite-otel-collector/lib/systemd/system/sqlite-otel-collector.service
 	
+	# Install documentation
+	install -D -m 0644 README.md \
+		debian/sqlite-otel-collector/usr/share/doc/sqlite-otel-collector/README.md
+	install -D -m 0644 LICENSE \
+		debian/sqlite-otel-collector/usr/share/doc/sqlite-otel-collector/LICENSE
+	
 	# Create directories
 	install -d -m 0755 debian/sqlite-otel-collector/var/lib/sqlite-otel-collector
 	install -d -m 0755 debian/sqlite-otel-collector/var/log
