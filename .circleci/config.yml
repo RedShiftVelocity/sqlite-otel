@@ -740,6 +740,13 @@ jobs:
               IMAGE_TAG="${VERSION}-dev-${BRANCH_SUFFIX}"
               ADDITIONAL_TAGS=""
               echo "Building development version from docker branch: $IMAGE_TAG"
+            elif [[ "$CIRCLE_BRANCH" =~ ^packaging/.* ]]; then
+              # Packaging branch - development version
+              VERSION=$(./sqlite-otel --version | head -1 | awk '{print $2}')
+              BRANCH_SUFFIX=$(echo $CIRCLE_BRANCH | sed 's/packaging\///' | sed 's/[^a-zA-Z0-9]/-/g')
+              IMAGE_TAG="${VERSION}-dev-${BRANCH_SUFFIX}"
+              ADDITIONAL_TAGS=""
+              echo "Building development version from packaging branch: $IMAGE_TAG"
             else
               echo "Unexpected branch/tag context"
               exit 1
