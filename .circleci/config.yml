@@ -40,11 +40,13 @@ executors:
   go-executor:
     docker:
       - image: cimg/go:1.21.6
+    resource_class: small
     working_directory: ~/repo
   
   docker-executor:
     docker:
       - image: cimg/go:1.21.6
+    resource_class: small
     working_directory: ~/repo
 
 jobs:
@@ -173,7 +175,7 @@ jobs:
   docker-build-and-test:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: large
+    resource_class: medium
     working_directory: ~/repo
     steps:
       - checkout
@@ -833,6 +835,7 @@ workflows:
                 - /deb\/.*/
                 - /rpm\/.*/
                 - /homebrew\/.*/
+                - /packaging\/.*/
             tags:
               ignore: /.*/
       - test:
@@ -847,6 +850,7 @@ workflows:
                 - /deb\/.*/
                 - /rpm\/.*/
                 - /homebrew\/.*/
+                - /packaging\/.*/
             tags:
               ignore: /.*/
   
@@ -1027,3 +1031,62 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v.*/
+
+  # Comprehensive packaging workflow for packaging/* branches
+  packaging-workflow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      # All packaging stages run in parallel after test
+      - deb-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - rpm-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - docker-build-and-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - docker-publish:
+          requires:
+            - docker-build-and-test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+      - homebrew-test:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
