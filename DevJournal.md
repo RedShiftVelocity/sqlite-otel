@@ -1,5 +1,50 @@
 # Development Journal
 
+## [2025-06-23] - PR #86: Ubuntu PPA Package Repository Support
+### Actions:
+- Created comprehensive Ubuntu PPA packaging structure in debian/ directory
+- Implemented debian/control with proper dependencies and package metadata
+- Created debian/rules with CGO-enabled Go build process and systemd integration
+- Added debian/changelog with version history for Ubuntu 22.04 LTS (Jammy)
+- Implemented debian/copyright with proper license attribution
+- Created maintainer scripts (postinst, prerm, postrm) for user/service management
+- Built automated PPA build and upload script (scripts/build-ppa.sh)
+- Added comprehensive PPA documentation and user installation guide
+
+### Decisions:
+- Support Ubuntu 22.04 LTS (Jammy Jellyfish)
+- Use native source package format (3.0 native) for PPA builds
+- Enable CGO for full SQLite support in PPA builds
+- Create dedicated sqlite-otel system user with security hardening
+- Implement comprehensive systemd service integration
+- Provide both automated and manual build processes
+- Include detailed troubleshooting and configuration documentation
+
+### Challenges:
+- Ensuring CGO-enabled builds work correctly in Launchpad build environment
+- Managing version numbering across multiple Ubuntu releases
+- Creating proper maintainer scripts for clean installation/removal
+- Balancing package complexity with Ubuntu packaging standards
+- Coordinating systemd service management with package lifecycle
+
+### Learnings:
+- Ubuntu PPA packaging requires source packages, not binary packages
+- debian/rules file controls the entire build process including Go compilation
+- Launchpad builds packages for multiple architectures automatically
+- Version suffixes (~focal1, ~jammy1) enable distribution-specific builds
+- GPG signing is mandatory for PPA uploads
+- debhelper-compat level 13 provides modern packaging features
+- systemd integration requires specific packaging patterns (dh-systemd)
+
+### PPA Structure:
+- **Package Name**: sqlite-otel-collector
+- **Architectures**: amd64, arm64, armhf
+- **Dependencies**: golang-go, libsqlite3-dev, systemd, adduser
+- **Installation Path**: /usr/bin/sqlite-otel-collector
+- **Service**: sqlite-otel-collector.service
+- **Data Directory**: /var/lib/sqlite-otel-collector/
+- **System User**: sqlite-otel with security restrictions
+
 ## [2025-06-22] - PR #85: Homebrew Package Manager Support
 ### Actions:
 - Created comprehensive Homebrew formula for multi-architecture support
