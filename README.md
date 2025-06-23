@@ -47,7 +47,7 @@ chmod +x sqlite-otel-darwin-arm64
 #### Ubuntu PPA (Recommended)
 ```bash
 # Add PPA and install
-sudo add-apt-repository ppa:manishsinha/sqlite-ote
+sudo add-apt-repository ppa:manishsinha/sqlite-otel
 sudo apt-get update
 sudo apt-get install sqlite-otel-collector
 
