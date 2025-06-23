@@ -61,7 +61,6 @@ install -D -m 0640 %{SOURCE2} %{buildroot}%{_sysconfdir}/%{name}/config.yaml
 
 %files
 %license LICENSE
-%doc README.md
 %{_bindir}/%{name}
 %{_unitdir}/%{name}.service
 %{_sysusersdir}/%{name}.conf
