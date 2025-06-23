@@ -1,5 +1,34 @@
 # Development Journal
 
+## [2025-06-22] - PR #85: Homebrew Package Manager Support
+### Actions:
+- Created comprehensive Homebrew formula for multi-architecture support
+- Added support for macOS (Intel/Apple Silicon) and Linux (x86_64/ARM64/ARM)
+- Implemented Homebrew service management with automatic data directory setup
+- Added detailed installation instructions and documentation
+- Created validation script for formula testing
+- Updated main README.md with Homebrew installation section
+
+### Decisions:
+- Use direct formula installation from GitHub (no custom tap initially)
+- Support all available architectures with platform-specific binary selection
+- Include comprehensive service management with brew services
+- Provide detailed caveats and usage instructions for users
+- Create separate homebrew/ directory for all Homebrew-related files
+
+### Challenges:
+- Managing multiple architecture downloads in single formula
+- Ensuring proper SHA256 checksums for all platform binaries
+- Creating comprehensive service configuration for different platforms
+- Balancing simplicity vs comprehensive feature coverage
+
+### Learnings:
+- Homebrew formulas can elegantly handle multi-platform binary distribution
+- Service blocks in Homebrew provide excellent background service management
+- Direct GitHub formula installation is viable for projects without custom taps
+- Comprehensive caveats section greatly improves user experience
+- Platform detection in Ruby is straightforward with Hardware::CPU methods
+
 ## [2025-06-22] - PR #84: Go Module Dependency Management Integration
 ### Actions:
 - Integrated `go mod tidy` verification into CircleCI build pipeline

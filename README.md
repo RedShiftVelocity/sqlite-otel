@@ -7,6 +7,52 @@ This project involves creating a standalone Go binary that functions as an OpenT
 - Go 1.21 or higher
 - SQLite 3.24.0 or higher (for ON CONFLICT clause support)
 
+## Installation
+
+### Homebrew (macOS & Linux)
+```bash
+# Download and install the formula
+curl -O https://raw.githubusercontent.com/RedShiftVelocity/sqlite-otel/main/homebrew/sqlite-otel-collector.rb
+brew install --build-from-source ./sqlite-otel-collector.rb
+
+# Start immediately
+sqlite-otel-collector
+
+# Or run as background service
+brew services start sqlite-otel-collector
+```
+
+### Download Pre-built Binaries
+Download the latest release from [GitHub Releases](https://github.com/RedShiftVelocity/sqlite-otel/releases):
+
+```bash
+# Linux x86_64
+curl -LO https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-linux-amd64
+chmod +x sqlite-otel-linux-amd64
+./sqlite-otel-linux-amd64
+
+# macOS Intel
+curl -LO https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-darwin-amd64
+chmod +x sqlite-otel-darwin-amd64
+./sqlite-otel-darwin-amd64
+
+# macOS Apple Silicon
+curl -LO https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-darwin-arm64
+chmod +x sqlite-otel-darwin-arm64
+./sqlite-otel-darwin-arm64
+```
+
+### Package Managers
+```bash
+# Ubuntu/Debian
+curl -LO https://github.com/RedShiftVelocity/sqlite-otel/releases/latest/download/sqlite-otel-collector_0.8.0_amd64.deb
+sudo dpkg -i sqlite-otel-collector_0.8.0_amd64.deb
+
+# Verify installation
+sudo systemctl start sqlite-otel-collector
+sudo systemctl status sqlite-otel-collector
+```
+
 ## Quick Start
 
 ### Binary Usage
