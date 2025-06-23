@@ -701,7 +701,7 @@ jobs:
   docker-publish:
     machine:
       image: ubuntu-2204:2024.01.1
-    resource_class: medium
+    resource_class: small
     working_directory: ~/repo
     steps:
       - checkout
