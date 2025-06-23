@@ -764,7 +764,7 @@ jobs:
             set -e
             echo "Uploading packages to PPA..."
             
-            PPA_NAME="ppa:manishsinha/sqlite-ote"
+            PPA_NAME="ppa:manishsinha/sqlite-otel"
             
             # Upload all built packages
             for changes_file in ../sqlite-otel-collector_*_source.changes; do
@@ -777,7 +777,7 @@ jobs:
             echo "✅ All packages uploaded to PPA successfully"
             echo ""
             echo "Monitor build status at:"
-            echo "https://launchpad.net/~manishsinha/+archive/ubuntu/sqlite-ote/+packages"
+            echo "https://launchpad.net/~manishsinha/+archive/ubuntu/sqlite-otel/+packages"
       - store_artifacts:
           path: ../
           destination: ppa-packages
