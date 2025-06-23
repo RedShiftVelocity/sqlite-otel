@@ -331,7 +331,9 @@ main() {
     for release in "${ubuntu_releases[@]}"; do
         log_info "Processing Ubuntu $release..."
         
-        local ppa_version="${VERSION}-1ubuntu1"
+        # Create unique version for each build to avoid upload conflicts
+        local timestamp=$(date +%Y%m%d%H%M%S)
+        local ppa_version="${VERSION}-1ubuntu1.${timestamp}"
         
         if build_source_package "$release" "$ppa_version"; then
             local changes_file="../${PACKAGE_NAME}_${ppa_version}~${release}1_source.changes"
