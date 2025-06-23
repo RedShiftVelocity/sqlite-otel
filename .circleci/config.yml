@@ -681,7 +681,108 @@ jobs:
             
             echo "✅ Cross-platform compatibility verified"
 
-  # Seventh: Create release (only for tags)
+  # Seventh: Build and upload to Ubuntu PPA (for ppa/* branches and version tags)
+  ppa-build-and-upload:
+    executor: go-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Install PPA tools
+          command: |
+            set -e
+            echo "Installing Ubuntu PPA development tools..."
+            sudo apt-get update
+            sudo apt-get install -y \
+              ubuntu-dev-tools \
+              devscripts \
+              build-essential \
+              debhelper \
+              golang-go \
+              libsqlite3-dev \
+              gnupg \
+              dput-ng
+            echo "✅ PPA tools installed"
+      - run:
+          name: Import GPG key
+          command: |
+            set -e
+            echo "Importing GPG key for package signing..."
+            
+            # Import the private key from environment variable
+            echo "$GPG_PRIVATE_KEY_BASE64" | base64 -d | gpg --import
+            
+            # Import the public key
+            echo "$GPG_PUBLIC_KEY_BASE64" | base64 -d | gpg --import
+            
+            # Verify key import
+            gpg --list-secret-keys | grep -q "DE19D310F39E5FCB"
+            echo "✅ GPG key imported successfully"
+      - run:
+          name: Set up environment
+          command: |
+            set -e
+            echo "Setting up PPA environment..."
+            
+            # Configure git for changelog generation
+            git config user.name "Manish Sinha"
+            git config user.email "manishsinha.tech@gmail.com"
+            
+            export GPG_KEY_ID="DE19D310F39E5FCB"
+            export DEBEMAIL="manishsinha.tech@gmail.com"
+            export DEBFULLNAME="Manish Sinha"
+            
+            # Save to BASH_ENV for subsequent steps
+            echo 'export GPG_KEY_ID="DE19D310F39E5FCB"' >> $BASH_ENV
+            echo 'export DEBEMAIL="manishsinha.tech@gmail.com"' >> $BASH_ENV
+            echo 'export DEBFULLNAME="Manish Sinha"' >> $BASH_ENV
+            
+            echo "Environment variables set"
+      - run:
+          name: Build source packages for all Ubuntu releases
+          command: |
+            set -e
+            echo "Building source packages for Ubuntu PPA..."
+            
+            # Use the build script we created
+            chmod +x scripts/build-for-ppa.sh
+            
+            # Build packages for multiple Ubuntu releases
+            ./scripts/build-for-ppa.sh \
+              --version "${CIRCLE_TAG:-0.8.0}" \
+              --build-only
+            
+            echo "✅ Source packages built for all Ubuntu releases"
+            
+            # Show what was built
+            echo "Built packages:"
+            ls -la ../*source.changes || true
+      - run:
+          name: Upload to PPA
+          command: |
+            set -e
+            echo "Uploading packages to PPA..."
+            
+            PPA_NAME="ppa:manishsinha/sqlite-ote"
+            
+            # Upload all built packages
+            for changes_file in ../sqlite-otel-collector_*_source.changes; do
+              if [ -f "$changes_file" ]; then
+                echo "Uploading: $changes_file"
+                dput "$PPA_NAME" "$changes_file"
+              fi
+            done
+            
+            echo "✅ All packages uploaded to PPA successfully"
+            echo ""
+            echo "Monitor build status at:"
+            echo "https://launchpad.net/~manishsinha/+archive/ubuntu/sqlite-ote/+packages"
+      - store_artifacts:
+          path: ../
+          destination: ppa-packages
+
+  # Eighth: Create release (only for tags)
   release:
     executor: go-executor
     steps:
@@ -1097,3 +1198,37 @@ workflows:
               only: /packaging\/.*/
             tags:
               ignore: /.*/
+      - ppa-build-and-upload:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /packaging\/.*/
+            tags:
+              ignore: /.*/
+
+  # PPA publishing for ppa/* branches and version tags
+  ppa-workflow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /ppa\/.*/
+            tags:
+              only: /^v.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /ppa\/.*/
+            tags:
+              only: /^v.*/
+      - ppa-build-and-upload:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /ppa\/.*/
+            tags:
+              only: /^v.*/
