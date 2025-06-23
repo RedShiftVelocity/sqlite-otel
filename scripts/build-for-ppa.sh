@@ -106,11 +106,11 @@ setup_debian_dir() {
         cat > debian/copyright << EOF
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: sqlite-otel-collector
-Upstream-Contact: RedShift Velocity <support@redshiftvelocity.com>
+Upstream-Contact: Manish Sinha <manishsinha.tech@gmail.com>
 Source: https://github.com/RedShiftVelocity/sqlite-otel
 
 Files: *
-Copyright: 2025 Red Shift Velocity
+Copyright: 2025 Manish Sinha <manishsinha.tech@gmail.com>
 License: MIT
 
 License: MIT
